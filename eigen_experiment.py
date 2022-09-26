@@ -31,7 +31,7 @@ def generate_tall_tensor_eigen(m, p, eigen1, eigen2, funM, invM):
 
     A_hat = np.concatenate([A1.reshape(m, p, 1), A2.reshape(m, p, 1)], 2)
     fun_dct, inv_dct = generate_dct(2)
-    A_tall_tensor = invM(A_hat)
+    A_tall_tensor = inv_dct(A_hat)
 
     X_true = np.random.randn(p, 1, 2)
     B = m_prod(A_tall_tensor, X_true, funM, invM)
@@ -90,9 +90,9 @@ for i in range(4):
     plt.title(f'random state of M = {M_random}')
     plt.ylabel('error')
     plt.legend()
-plt.suptitle('M prod LSQR')
+plt.suptitle('M prod LSQR, A generated with DCT')
 plt.tight_layout()
-plt.savefig(path_to_save+'eigenvalues_experiment_LSQR')
+plt.savefig(path_to_save+'eigenvalues_experiment_LSQR_dct')
 plt.show()
 
 iters = 20
@@ -127,9 +127,9 @@ for i in range(4):
     plt.title(f'random state of M = {M_random}')
     plt.ylabel('error')
     plt.legend()
-plt.suptitle('M prod conjugate gradient')
+plt.suptitle('M prod conjugate gradient, A generated with DCT')
 plt.tight_layout()
-plt.savefig(path_to_save+'eigenvalues_experiment_CG')
+plt.savefig(path_to_save+'eigenvalues_experiment_CG_dct')
 plt.show()
 
 link = 'https://www.dropbox.com/scl/fo/vwn07zx7omd0zvqw0laxs/h?dl=0&rlkey=oyllju7bignxhr1liqdqh8b23'
