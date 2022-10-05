@@ -63,8 +63,8 @@ def generate_tall_A(A_hat, transform, randomM, X_true):
 #         A_tall_tensor = fun_dct(A_tall_tensor)
 #     B = m_prod(A_tall_tensor, X_true, funM, invM)
 #     return A_tall_tensor, B
-
-
+#
+#
 # def generate_tensor_eigen(m, p, eigen1, eigen2, funM, invM, add_dct):
 #     np.random.seed(0)
 #     A1 = generate_tall_matrix(m, p, eigen1)
@@ -157,10 +157,13 @@ for i in range(4):
     l2 = plt.plot(error, c='y', label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
     # plt.plot(bound_vector, 'y--', label='bound')
 
-    A_tensor, B = generate_tall_A(A_tall_hat_bad, 'DCT', M_random, X_true)
+    A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', M_random, X_true)
+    R, P = algo.sampling_QR(A_tensor, funM, invM, s=100)
+    A_tensor_precond = m_prod(A_tensor, P, funM, invM)
+    X_true = m_prod(R, X_true, funM, invM)
     X, error = algo.LSQR_mprod(A_tensor, B, funM, invM, iters, X_true=X_true)
     bound_vector = bond_vector_f(np.arange(iters + 1), 2 * 10 ** 4, error[0])
-    a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor, funM)
+    a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor_precond, funM)
     l3 = plt.plot(error, c='purple', label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
 
     A_tensor, B = generate_tall_A(A_tall_hat_good, 'DCT', M_random, X_true)

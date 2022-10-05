@@ -132,3 +132,80 @@ def LSQR_mprod(A, C, funM, invM, itermax=25, tol=10 ** -5, X_true=None):
             error_each_step.append(nu_tensor_norm(E, A_tensor, funM, invM))
 
     return X, error_each_step
+
+def inverse_tensor(tensor, funM, invM):
+    tensor_hat = funM(tensor)
+    m, p, n = tensor_hat.shape
+    face_inv = np.concatenate([np.linalg.inv(tensor_hat[:, :, i]).reshape(m, p, 1) for i in range(n)], 2)
+    tensor_inv = invM(face_inv)
+    return tensor_inv
+
+# from mprod import  generate_haar, generate_dct
+# funM, invM = generate_haar(4, random_state=0)
+# A = np.random.randn(5,5,4)
+# print(A.shape)
+# A_inv = inverse_tensor(A, funM, invM)
+# C = m_prod(A, A_inv, funM, invM)
+# D = funM(C)
+# print(D)
+# print('here')
+
+def tensor_QR(tensor, funM, invM):
+    m, p, n = tensor.shape
+    tensor_hat = funM(tensor)
+    tensor_Q = np.empty((m, p, 0))
+    tensor_R = np.empty((p, p, 0))
+    for i in range(n):
+        Q, R = np.linalg.qr(tensor_hat[:, :, i], mode='reduced')
+        print(Q.shape)
+        print(R.shape)
+
+        tensor_Q = np.concatenate([tensor_Q, Q.reshape(m, p, 1)], 2)
+        tensor_R = np.concatenate([tensor_R, R.reshape(p, p, 1)], 2)
+    print(tensor_Q.shape)
+    print(tensor_R.shape)
+    tensor_Q = invM(tensor_Q)
+    tensor_R = invM(tensor_R)
+    return tensor_Q, tensor_R
+
+
+
+# from mprod import  generate_haar, generate_dct
+# A = np.random.randn(5,3,4)
+# funM, invM = generate_haar(4, random_state=0)
+# tensor_Q, tensor_R = tensor_QR(A, funM, invM)
+# A_nw = m_prod(tensor_Q, tensor_R, funM, invM)
+# print('here')
+
+
+def sampling_QR(tensor, funM, invM, s):
+    m, p, n = tensor.shape
+    sampling_tensor = np.random.randn(s, m, n)
+    sampled_tensor = m_prod(sampling_tensor, tensor, funM, invM)
+    tensor_Q, tensor_R = tensor_QR(sampled_tensor, funM, invM)
+    tensor_precond = inverse_tensor(tensor_R, funM, invM)
+    return tensor_R, tensor_precond
+
+
+# from mprod import  generate_haar, generate_dct
+# A = np.random.rand(100, 3, 4)
+# funM, invM = generate_haar(4, random_state=0)
+# A_hat = funM(A)
+# C = np.einsum('mpi,pli->mli', A_hat.transpose(1, 0, 2), A_hat)
+# all_eigen = np.empty((0))
+# for i in range(4):
+#     eig_i = np.linalg.eigvals(C[:, :, i])
+#     all_eigen = np.concatenate([all_eigen, eig_i], 0)
+# print(all_eigen)
+# print(all_eigen.max()/all_eigen.min())
+# tensor_precond = sampling_QR(A, funM, invM, 20)
+#
+# A_new = m_prod(A, tensor_precond, funM, invM)
+# A_hat_new = funM(A_new)
+# C_new = np.einsum('mpi,pli->mli', A_hat_new.transpose(1, 0, 2), A_hat_new)
+# all_eigen = np.empty((0))
+# for i in range(4):
+#     eig_i = np.linalg.eigvals(C_new[:, :, i])
+#     all_eigen = np.concatenate([all_eigen, eig_i], 0)
+# print(all_eigen)
+# print(all_eigen.max()/all_eigen.min())
