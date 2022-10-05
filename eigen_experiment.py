@@ -97,17 +97,39 @@ def generate_square_A(A_hat, transform, randomM, X_true):
     return A_tensor, B
 
 
+
+def get_eigen_sym(A, funM):
+    A_hat = funM(A)
+    lambda1 = np.linalg.eigvals(A_hat[:, :, 0])
+    a1_min = np.round(lambda1.min(), 0)
+    a1_max = np.round(lambda1.max(), 0)
+    lambda2 = np.linalg.eigvals(A_hat[:, :, 1])
+    a2_min = np.round(lambda2.min(), 0)
+    a2_max = np.round(lambda2.max(), 0)
+    return a1_min, a1_max, a2_min, a2_max
+
+def get_eigen_tall(A, funM):
+    A_hat = funM(A)
+    A_hat_sym = np.einsum('mpi,pli->mli', A_hat.transpose(1, 0, 2), A_hat)
+    lambda1 = np.linalg.eigvals(A_hat_sym[:, :, 0])
+    a1_min = np.round(lambda1.min(), 0)
+    a1_max = np.round(lambda1.max(), 0)
+    lambda2 = np.linalg.eigvals(A_hat_sym[:, :, 1])
+    a2_min = np.round(lambda2.min(), 0)
+    a2_max = np.round(lambda2.max(), 0)
+    return a1_min, a1_max, a2_min, a2_max
+
 path_to_save = '/home/anna/uni/thesis/numerical_results/'
 m, p = 500, 50
 X_true = np.random.randn(p, 1, 2)
 M_list = ['DCT', 21, 127, 333]
-
+degree = 9
+A_tall_hat_bad = generate_tall_A_hat(m, p, eigen1=1, eigen2=10**degree)
+A_tall_hat_good = generate_tall_A_hat(m, p, eigen1=1, eigen2=1)
 
 fig = plt.figure(figsize=(15, 10))
 #LSQR parameters
-A_tall_hat_bad = generate_tall_A_hat(m, p, eigen1=1, eigen2=10**9)
-A_tall_hat_good = generate_tall_A_hat(m, p, eigen1=1, eigen2=1)
-iters = 40
+iters = 30
 
 for i in range(4):
     M_random = M_list[i]
@@ -120,51 +142,53 @@ for i in range(4):
 
     A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', M_random, X_true)
     X, error = algo.LSQR_mprod(A_tensor, B, funM, invM, iters, X_true=X_true)
-    bound_vector = bond_vector_f(np.arange(iters+1), 2*10**4, error[0])
+    bound_vector = bond_vector_f(np.arange(iters+1), 2*10**degree, error[0])
 
-    l1 = plt.plot(error, c='b', label='eigvals of Ahat^TA_hat for first slice are 1-2, second slice: 1*10^9-2*10^9')
+    a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor, funM)
+    l1 = plt.plot(error, c='b',
+                  label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
     # plt.plot(bound_vector, 'b--', label='bound')
 
 
     A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', M_random, X_true)
     X, error = algo.LSQR_mprod(A_tensor, B, funM, invM, iters, X_true=X_true)
     bound_vector = bond_vector_f(np.arange(iters+1), 2, error[0])
-
-    l2 = plt.plot(error, c='y', label='all eigenvalues of Ahat^TA_hat are from 1 to 2')
+    a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor, funM)
+    l2 = plt.plot(error, c='y', label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
     # plt.plot(bound_vector, 'y--', label='bound')
 
     A_tensor, B = generate_tall_A(A_tall_hat_bad, 'DCT', M_random, X_true)
     X, error = algo.LSQR_mprod(A_tensor, B, funM, invM, iters, X_true=X_true)
     bound_vector = bond_vector_f(np.arange(iters + 1), 2 * 10 ** 4, error[0])
-
-    l3 = plt.plot(error, c='purple', label='eigvals of Ahat^TA_hat for first slice are 1-2, second slice: 1*10^9-2*10^9 transformed DCT')
+    a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor, funM)
+    l3 = plt.plot(error, c='purple', label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
 
     A_tensor, B = generate_tall_A(A_tall_hat_good, 'DCT', M_random, X_true)
     X, error = algo.LSQR_mprod(A_tensor, B, funM, invM, iters, X_true=X_true)
     bound_vector = bond_vector_f(np.arange(iters + 1), 2 * 10 ** 4, error[0])
+    a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor, funM)
+    l4 = plt.plot(error, c='orange', label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
 
-    l4 = plt.plot(error, c='orange', label='all eigenvalues of Ahat^TA_hat are from 1 to 2 trabsformed DCT')
 
-
-
+    plt.legend(loc='upper right')
     plt.xlabel('iterations')
     plt.yscale("log")
     plt.title(f'random state of M = {M_random}')
     plt.ylabel('error')
     # plt.legend(loc='upper right')
-
-line_labels = ['eigvals of Ahat^TA_hat for first slice are 1-2, second slice: 1*10^9-2*10^9',
+#
+line_labels = [f'eigvals of Ahat^TA_hat for first slice are 1-2, second slice: 1*10^{degree}-2*10^{degree}',
                'all eigenvalues of Ahat^TA_hat are from 1 to 2',
-               'eigvals of Ahat^TA_hat for first slice are 1-2, second slice: 1*10^9-2*10^9 transformed DCT',
+               f'eigvals of Ahat^TA_hat for first slice are 1-2, second slice: 1*10^{degree}-2*10^{degree} transformed DCT',
                'all eigenvalues of Ahat^TA_hat are from 1 to 2 trabsformed DCT']
-fig.legend([l1, l2, l3, l4], labels=line_labels, bbox_to_anchor=(0.8, 0.9))
+fig.legend([l1, l2, l3, l4], labels=line_labels, bbox_to_anchor=(0.8, 0.7))
 plt.suptitle('M prod LSQR')
 plt.tight_layout()
 plt.savefig(path_to_save+'eigenvalues_experiment_LSQR_trans_dct')
 plt.show()
 
 
-iters = 20
+iters = 30
 
 fig = plt.figure(figsize=(15, 10))
 for i in range(4):
@@ -180,35 +204,36 @@ for i in range(4):
     X, error = algo.CG_M_tensor(A_tensor, B, funM, invM, iters, X_true=X_true)
     bound_vector = bond_vector_f(np.arange(iters+1), 2*10**4, error[0])
 
-    l1 = plt.plot(error, c='b', label='eigvals of A^ for first slice are 1-2, second slice - 1*10^9-2*10^9')
+    a1_min, a1_max, a2_min, a2_max = get_eigen_sym(A_tensor, funM)
+    l1 = plt.plot(error, c='b', label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
     # plt.plot(bound_vector, 'b--', label='bound')
 
     A_tensor, B = generate_square_A(A_tall_hat_good, 'original M', M_random, X_true)
     X, error = algo.CG_M_tensor(A_tensor, B, funM, invM, iters, X_true=X_true)
     # bound_vector = bond_vector_f(np.arange(iters+1), 2, error[0])
-
-    l2 = plt.plot(error, c='y', label='all eigenvalues of A^are from 1 to 2')
+    a1_min, a1_max, a2_min, a2_max = get_eigen_sym(A_tensor, funM)
+    l2 = plt.plot(error, c='y', label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
     # plt.plot(bound_vector, 'y--', label='bound')
 
     A_tensor, B = generate_square_A(A_tall_hat_bad, 'DCT', M_random, X_true)
     X, error = algo.CG_M_tensor(A_tensor, B, funM, invM, iters, X_true=X_true)
     bound_vector = bond_vector_f(np.arange(iters+1), 2*10**4, error[0])
 
-
-    l3 = plt.plot(error, c='purple', label='eigvals of A^ for first slice are 1-2, second slice - 1*10^9-2*10^9 transformed DCT')
+    a1_min, a1_max, a2_min, a2_max = get_eigen_sym(A_tensor, funM)
+    l3 = plt.plot(error, c='purple', label=f'A obtained with DCT\n$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
 
     A_tensor, B = generate_square_A(A_tall_hat_good, 'DCT', M_random, X_true)
     X, error = algo.CG_M_tensor(A_tensor, B, funM, invM, iters, X_true=X_true)
     bound_vector = bond_vector_f(np.arange(iters+1), 2, error[0])
-
-    l4 = plt.plot(error, c='orange', label='all eigenvalues of A^are from 1 to 2 transformed DCT')
+    a1_min, a1_max, a2_min, a2_max = get_eigen_sym(A_tensor, funM)
+    l4 = plt.plot(error, c='orange', label=f'A obtained with DCT\n$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
 
     plt.xlabel('iterations')
     plt.yscale("log")
     plt.title(f'random state of M = {M_random}')
     plt.ylabel('error')
-
-fig.legend([l1, l2, l3, l4], labels=line_labels, bbox_to_anchor=(0.8, 0.9))
+    plt.legend(loc='upper right')
+fig.legend([l1, l2, l3, l4], labels=line_labels, bbox_to_anchor=(0.8, 0.7))
 plt.suptitle('M prod conjugate gradient')
 plt.tight_layout()
 plt.savefig(path_to_save+'eigenvalues_experiment_CG_add_trans_dct')
