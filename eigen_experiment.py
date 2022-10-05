@@ -92,7 +92,7 @@ def generate_square_A(A_hat, transform, randomM, X_true):
         A_tall_tensor = inv_dct(A_hat)
     else:
         A_tall_tensor = invM(A_hat)
-    A_tensor = m_prod(A_tall_tensor.transpose(1,0,2), A_tall_tensor, funM, invM)
+    A_tensor = m_prod(A_tall_tensor.transpose(1, 0, 2), A_tall_tensor, funM, invM)
     B = m_prod(A_tensor, X_true, funM, invM)
     return A_tensor, B
 
