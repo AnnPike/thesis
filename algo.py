@@ -157,13 +157,10 @@ def tensor_QR(tensor, funM, invM):
     tensor_R = np.empty((p, p, 0))
     for i in range(n):
         Q, R = np.linalg.qr(tensor_hat[:, :, i], mode='reduced')
-        print(Q.shape)
-        print(R.shape)
 
         tensor_Q = np.concatenate([tensor_Q, Q.reshape(m, p, 1)], 2)
         tensor_R = np.concatenate([tensor_R, R.reshape(p, p, 1)], 2)
-    print(tensor_Q.shape)
-    print(tensor_R.shape)
+
     tensor_Q = invM(tensor_Q)
     tensor_R = invM(tensor_R)
     return tensor_Q, tensor_R
