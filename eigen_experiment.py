@@ -142,7 +142,7 @@ for i in range(4):
     plt.subplot(2, 2, i+1)
 
     A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', M_random, X_true)
-    X, error = algo.LSQR_mprod(A_tensor, B, funM, invM, iters, X_true=X_true)
+    X, error = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
     bound_vector = bond_vector_f(np.arange(iters+1), 2*10**degree, error[0])
 
     a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor, funM)
@@ -152,7 +152,7 @@ for i in range(4):
 
 
     A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', M_random, X_true)
-    X, error = algo.LSQR_mprod(A_tensor, B, funM, invM, iters, X_true=X_true)
+    X, error = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
     bound_vector = bond_vector_f(np.arange(iters+1), 2, error[0])
     a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor, funM)
     l2 = plt.plot(error, c='y', label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
@@ -164,7 +164,7 @@ for i in range(4):
     R, P = algo.sampling_QR(A_tensor, funM, invM, s=s)
     A_tensor_precond = m_prod(A_tensor, P, funM, invM)
     X_true_new = m_prod(R, X_true, funM, invM)
-    X, error = algo.LSQR_mprod(A_tensor_precond, B, funM, invM, iters, X_true=X_true_new)
+    X, error = algo.LSQR_mprod_tuples(A_tensor_precond, B, funM, invM, iters, X_true=X_true_new)
     bound_vector = bond_vector_f(np.arange(iters + 1), 2 * 10 ** 4, error[0])
     a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor_precond, funM)
     l3 = plt.plot(error, c='purple', label=f'BLENDENPIK\n$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
@@ -173,7 +173,7 @@ for i in range(4):
     R, P = algo.sampling_QR(A_tensor, funM, invM, s=s)
     A_tensor_precond = m_prod(A_tensor, P, funM, invM)
     X_true_new = m_prod(R, X_true, funM, invM)
-    X, error = algo.LSQR_mprod(A_tensor_precond, B, funM, invM, iters, X_true=X_true_new)
+    X, error = algo.LSQR_mprod_tuples(A_tensor_precond, B, funM, invM, iters, X_true=X_true_new)
     bound_vector = bond_vector_f(np.arange(iters + 1), 2 * 10 ** 4, error[0])
     a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor_precond, funM)
     l4 = plt.plot(error, c='orange', label=f'BLENDENPIK\n$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')

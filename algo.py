@@ -3,22 +3,22 @@ from mprod import  m_prod
 
 
 def normalize(X, funM, invM, tol=10**-10):
-    V = funM(X)
+    V_hat = funM(X)
     m, p, n = X.shape #p==1
     a_all = np.ones(n)
     for i in range(n):
-        a = np.linalg.norm(V[:, :, i].squeeze(), None)
+        a = np.linalg.norm(V_hat[:, :, i].squeeze(), None)
         # print(a)
         a_all[i] = a
         if a > tol:
-            V[:, :, i] = V[:, :, i]/a
+            V_hat[:, :, i] = V_hat[:, :, i]/a
         else:
             print(a)
-            V[:, :, i] = np.random.randn(m, 1)
-            a = np.linalg.norm(V[:, :, i].squeeze(), None)
-            V[:, :, i] = V[:, :, i]/a
+            V_hat[:, :, i] = np.random.randn(m, 1)
+            a = np.linalg.norm(V_hat[:, :, i].squeeze(), None)
+            V_hat[:, :, i] = V_hat[:, :, i]/a
             a_all[i] = 0
-    V = invM(V)
+    V = invM(V_hat)
     a_all = invM(a_all.reshape((1, 1, -1)))
     return V, a_all
 
@@ -66,7 +66,7 @@ def CG_M_tensor(A_tensor, B, funM, invM, iters, tol=10**-10, X_true=None):
         alpha_num = m_prod(R.transpose((1,0,2)), R, funM, invM)
         alpha_den = m_prod_three(D.transpose((1,0,2)),A_tensor, D, funM, invM)
 
-        alpha = m_prod(alpha_num,inverse_of_tube(alpha_den, funM, invM),funM, invM)
+        alpha = m_prod(alpha_num, inverse_of_tube(alpha_den, funM, invM), funM, invM)
         X = X+m_prod(D, alpha, funM, invM)
         R_next = R-m_prod_three(A_tensor, D, alpha, funM, invM)
         beta_num = m_prod(R_next.transpose((1,0,2)), R_next, funM, invM)
@@ -124,6 +124,54 @@ def LSQR_mprod(A, C, funM, invM, itermax=25, tol=10 ** -5, X_true=None):
         fi_ = -s * fi_
         X = X + fi * W / ro
         W = V - theta * W / ro
+
+        # if abs(fi_) < tol:
+        #     break
+        if X_true is not None:
+            E = X - X_true
+            error_each_step.append(nu_tensor_norm(E, A_tensor, funM, invM))
+
+    return X, error_each_step
+
+
+def LSQR_mprod_tuples(A, C, funM, invM, itermax=25, tol=10 ** -5, X_true=None):
+    ### A - m*p*n, C - m*1*n ###
+    # initialization
+    A_tensor = m_prod(np.transpose(A, (1, 0, 2)), A, funM, invM)
+
+    X = np.zeros((A.shape[1], C.shape[1], C.shape[2]))  # X - l*s*p
+    U, beta = normalize(C, funM, invM)
+
+    V_wave = m_prod(np.transpose(A, (1, 0, 2)), U, funM, invM)
+    V, alpha = normalize(V_wave, funM, invM) # V - l*s*p
+
+    W = V.copy()
+    ro_ = alpha.copy()
+    fi_ = beta.copy()
+    if X_true is not None:
+        E0 = X - X_true
+        error_each_step = [nu_tensor_norm(E0, A_tensor, funM, invM)]
+    for i in range(itermax):
+        # bidiagonalization
+        U_wave = m_prod(A, V, funM, invM) - m_prod(U, alpha, funM, invM)
+        U, beta = normalize(U_wave, funM, invM)
+
+        V_wave = m_prod(np.transpose(A, (1, 0, 2)), U, funM, invM) - m_prod(V, beta, funM, invM)
+        V, alpha = normalize(V_wave, funM, invM) # V - l*s*p
+
+        # orthogonal transformation
+        ro = invM(np.sqrt(funM(ro_) ** 2 + funM(beta) ** 2))
+        # ro = np.sqrt(ro_ ** 2 + beta ** 2)
+        ro_inv = inverse_of_tube(ro, funM, invM)
+        c = m_prod(ro_inv, ro_, funM, invM)
+        s = m_prod(ro_inv, beta, funM, invM)
+
+        theta = m_prod(s, alpha, funM, invM)
+        ro_ = m_prod(c, alpha, funM, invM)
+        fi = m_prod(c, fi_, funM, invM)
+        fi_ = -m_prod(s, fi_, funM, invM)
+        X = X + m_prod_three(W, ro_inv, fi, funM, invM)
+        W = V - m_prod_three(W, ro_inv, theta, funM, invM)
 
         # if abs(fi_) < tol:
         #     break
