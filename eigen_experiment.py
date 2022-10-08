@@ -158,7 +158,7 @@ for i in range(4):
     l2 = plt.plot(error, c='y', label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
     # plt.plot(bound_vector, 'y--', label='bound')
 
-    s = 300
+    s = 500
 
     A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', M_random, X_true)
     R, P = algo.sampling_QR(A_tensor, funM, invM, s=s)
@@ -188,12 +188,12 @@ for i in range(4):
 #
 line_labels = [f'eigvals of Ahat^TA_hat for first slice are 1-2, second slice: 1*10^{degree}-2*10^{degree}',
                'all eigenvalues of Ahat^TA_hat are from 1 to 2',
-               f'eigvals of Ahat^TA_hat for first slice are 1-2, second slice: 1*10^{degree}-2*10^{degree} transformed DCT',
-               'all eigenvalues of Ahat^TA_hat are from 1 to 2 trabsformed DCT']
-# fig.legend([l1, l2, l3, l4], labels=line_labels, bbox_to_anchor=(0.8, 0.7))
-plt.suptitle('M prod LSQR')
+               f'eigvals of Ahat^TA_hat for first slice are 1-2, second slice: 1*10^{degree}-2*10^{degree}',
+               'all eigenvalues of Ahat^TA_hat are from 1 to 2']
+fig.legend([l1, l2, l3, l4], labels=line_labels, bbox_to_anchor=(0.8, 0.7))
+plt.suptitle(f'M prod LSQR, A shape is {m}, {p}, 2, s={s}')
 plt.tight_layout()
-plt.savefig(path_to_save+'eigenvalues_experiment_LSQR_blendenpik')
+plt.savefig(path_to_save+f'eigenvalues_experiment_LSQR_blendenpik_{s}')
 plt.show()
 
 
