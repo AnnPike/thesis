@@ -10,11 +10,11 @@ def normalize(X, funM, invM, tol=10**-10):
         a = np.linalg.norm(V[:, :, i].squeeze(), None)
         # print(a)
         a_all[i] = a
-        if a>tol:
+        if a > tol:
             V[:, :, i] = V[:, :, i]/a
         else:
             print(a)
-            V[:,:,i] = np.random.randn(m, 1)
+            V[:, :, i] = np.random.randn(m, 1)
             a = np.linalg.norm(V[:, :, i].squeeze(), None)
             V[:, :, i] = V[:, :, i]/a
             a_all[i] = 0
@@ -185,7 +185,7 @@ def sampling_QR(tensor, funM, invM, s):
 
 
 # from mprod import  generate_haar, generate_dct
-# A = np.random.rand(100, 3, 4)
+# A = np.random.randn(100, 3, 4)
 # funM, invM = generate_haar(4, random_state=0)
 # A_hat = funM(A)
 # C = np.einsum('mpi,pli->mli', A_hat.transpose(1, 0, 2), A_hat)
@@ -195,7 +195,7 @@ def sampling_QR(tensor, funM, invM, s):
 #     all_eigen = np.concatenate([all_eigen, eig_i], 0)
 # print(all_eigen)
 # print(all_eigen.max()/all_eigen.min())
-# tensor_precond = sampling_QR(A, funM, invM, 20)
+# R, tensor_precond = sampling_QR(A, funM, invM, 20)
 #
 # A_new = m_prod(A, tensor_precond, funM, invM)
 # A_hat_new = funM(A_new)
