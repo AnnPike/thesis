@@ -20,9 +20,12 @@ def nu_tensor_norm(E, A_tensor, funM, invM):
 
 
 def generate_tall_matrix(m, p, eigenmin):
-    A_o = ortho_group.rvs(dim=m)
+    H = ortho_group.rvs(dim=m)
     eigen = np.sqrt((np.random.rand(p)+1)*eigenmin)
-    P = eigen.reshape(1, -1)*A_o[:, :p]
+    # P = eigen.reshape(1, -1)*A_o[:, :p]
+    LAM = np.zeros((p, p))
+    np.fill_diagonal(LAM, eigen)
+    P = np.matmul(H[:, :p], LAM)
     Q = ortho_group.rvs(dim=p)
     A = np.matmul(P, Q.T)
     return A
@@ -158,7 +161,7 @@ for i in range(4):
     l2 = plt.plot(error, c='y', label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
     # plt.plot(bound_vector, 'y--', label='bound')
 
-    s = 500
+    s = 300
 
     A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', M_random, X_true)
     R, P = algo.sampling_QR(A_tensor, funM, invM, s=s)
