@@ -151,7 +151,7 @@ for i in range(4):
     a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor, funM)
     l1 = plt.plot(error, c='b',
                   label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
-    # plt.plot(bound_vector, 'b--', label='bound')
+    plt.plot(bound_vector, 'b--', label='bound')
 
 
     A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', M_random, X_true)
@@ -159,27 +159,7 @@ for i in range(4):
     bound_vector = bond_vector_f(np.arange(iters+1), 2, error[0])
     a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor, funM)
     l2 = plt.plot(error, c='y', label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
-    # plt.plot(bound_vector, 'y--', label='bound')
-
-    s = 300
-
-    A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', M_random, X_true)
-    R, P = algo.sampling_QR(A_tensor, funM, invM, s=s)
-    A_tensor_precond = m_prod(A_tensor, P, funM, invM)
-    X_true_new = m_prod(R, X_true, funM, invM)
-    X, error = algo.LSQR_mprod_tuples(A_tensor_precond, B, funM, invM, iters, X_true=X_true_new)
-    bound_vector = bond_vector_f(np.arange(iters + 1), 2 * 10 ** 4, error[0])
-    a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor_precond, funM)
-    l3 = plt.plot(error, c='purple', label=f'BLENDENPIK\n$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
-
-    A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', M_random, X_true)
-    R, P = algo.sampling_QR(A_tensor, funM, invM, s=s)
-    A_tensor_precond = m_prod(A_tensor, P, funM, invM)
-    X_true_new = m_prod(R, X_true, funM, invM)
-    X, error = algo.LSQR_mprod_tuples(A_tensor_precond, B, funM, invM, iters, X_true=X_true_new)
-    bound_vector = bond_vector_f(np.arange(iters + 1), 2 * 10 ** 4, error[0])
-    a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor_precond, funM)
-    l4 = plt.plot(error, c='orange', label=f'BLENDENPIK\n$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
+    plt.plot(bound_vector, 'y--', label='bound')
 
 
     plt.legend(loc='upper right')
@@ -190,13 +170,11 @@ for i in range(4):
     # plt.legend(loc='upper right')
 #
 line_labels = [f'eigvals of Ahat^TA_hat for first slice are 1-2, second slice: 1*10^{degree}-2*10^{degree}',
-               'all eigenvalues of Ahat^TA_hat are from 1 to 2',
-               f'eigvals of Ahat^TA_hat for first slice are 1-2, second slice: 1*10^{degree}-2*10^{degree}',
                'all eigenvalues of Ahat^TA_hat are from 1 to 2']
-fig.legend([l1, l2, l3, l4], labels=line_labels, bbox_to_anchor=(0.8, 0.7))
-plt.suptitle(f'M prod LSQR, A shape is {m}, {p}, 2, s={s}')
+fig.legend([l1, l2], labels=line_labels, bbox_to_anchor=(0.8, 0.7))
+plt.suptitle(f'M prod LSQR, A shape is {m}, {p}, 2')
 plt.tight_layout()
-plt.savefig(path_to_save+f'eigenvalues_experiment_LSQR_blendenpik_{s}')
+plt.savefig(path_to_save+f'eigenvalues_experiment_LSQR')
 plt.show()
 
 

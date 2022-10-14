@@ -10,7 +10,7 @@ def generate_equation(m, p, n, ran_int, psd):
     A_orig = np.random.rand(m, p, n)
     funM, invM = generate_haar(n, random_state=ran_int)
     if psd:
-        A_tensor = m_prod(A_orig.transpose((1,0,2)), A_orig, funM, invM)+10*np.array(n*[np.identity(p)]).transpose((1,2,0))
+        A_tensor = m_prod(A_orig.transpose((1, 0, 2)), A_orig, funM, invM)+10*np.array(n*[np.identity(p)]).transpose((1,2,0))
     else:
         A_tensor = A_orig.copy()
     X_true = np.random.rand(p, 1, n)
@@ -39,7 +39,7 @@ def plot_convergence(algorithm, m, p, n, psd, path_to_save=path_to_save):
     plt.show()
 
 
-m, p, n = 1000, 50, 10
+m, p, n = 500, 50, 2
 plot_convergence(algo.CG_M_tensor, m, p, n, True)
 plot_convergence(algo.LSQR_mprod, m, p, n, False)
 
