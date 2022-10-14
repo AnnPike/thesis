@@ -137,12 +137,16 @@ def LSQR_mprod(A, C, funM, invM, itermax=25, tol=10 ** -5, X_true=None):
 def LSQR_mprod_tuples(A, C, funM, invM, itermax=25, tol=10 ** -5, X_true=None):
     ### A - m*p*n, C - m*1*n ###
     # initialization
-    A_tensor = m_prod(np.transpose(A, (1, 0, 2)), A, funM, invM)
+    def m_prod_fun(X, Y, funM=funM, invM=invM):
+        return m_prod(X, Y, funM, invM)
+    def m_prod_three_fun(X, Y, Z, funM=funM, invM=invM):
+        return m_prod_three(X, Y, Z, funM, invM)
+    A_tensor = m_prod_fun(np.transpose(A, (1, 0, 2)), A)
 
     X = np.zeros((A.shape[1], C.shape[1], C.shape[2]))  # X - l*s*p
     U, beta = normalize(C, funM, invM)
 
-    V_wave = m_prod(np.transpose(A, (1, 0, 2)), U, funM, invM)
+    V_wave = m_prod_fun(np.transpose(A, (1, 0, 2)), U)
     V, alpha = normalize(V_wave, funM, invM) # V - l*s*p
 
     W = V.copy()
@@ -153,25 +157,25 @@ def LSQR_mprod_tuples(A, C, funM, invM, itermax=25, tol=10 ** -5, X_true=None):
         error_each_step = [nu_tensor_norm(E0, A_tensor, funM, invM)]
     for i in range(itermax):
         # bidiagonalization
-        U_wave = m_prod(A, V, funM, invM) - m_prod(U, alpha, funM, invM)
+        U_wave = m_prod_fun(A, V) - m_prod_fun(U, alpha)
         U, beta = normalize(U_wave, funM, invM)
 
-        V_wave = m_prod(np.transpose(A, (1, 0, 2)), U, funM, invM) - m_prod(V, beta, funM, invM)
+        V_wave = m_prod_fun(np.transpose(A, (1, 0, 2)), U) - m_prod_fun(V, beta)
         V, alpha = normalize(V_wave, funM, invM) # V - l*s*p
 
         # orthogonal transformation
         ro = invM(np.sqrt(funM(ro_) ** 2 + funM(beta) ** 2))
         # ro = np.sqrt(ro_ ** 2 + beta ** 2)
         ro_inv = inverse_of_tube(ro, funM, invM)
-        c = m_prod(ro_inv, ro_, funM, invM)
-        s = m_prod(ro_inv, beta, funM, invM)
+        c = m_prod_fun(ro_inv, ro_)
+        s = m_prod_fun(ro_inv, beta)
 
-        theta = m_prod(s, alpha, funM, invM)
-        ro_ = m_prod(c, alpha, funM, invM)
-        fi = m_prod(c, fi_, funM, invM)
-        fi_ = -m_prod(s, fi_, funM, invM)
-        X = X + m_prod_three(W, ro_inv, fi, funM, invM)
-        W = V - m_prod_three(W, ro_inv, theta, funM, invM)
+        theta = m_prod_fun(s, alpha)
+        ro_ = m_prod_fun(c, alpha)
+        fi = m_prod_fun(c, fi_)
+        fi_ = -m_prod_fun(s, fi_)
+        X = X + m_prod_three_fun(W, ro_inv, fi)
+        W = V - m_prod_three_fun(W, ro_inv, theta)
 
         # if abs(fi_) < tol:
         #     break
@@ -180,6 +184,65 @@ def LSQR_mprod_tuples(A, C, funM, invM, itermax=25, tol=10 ** -5, X_true=None):
             error_each_step.append(nu_tensor_norm(E, A_tensor, funM, invM))
 
     return X, error_each_step
+
+
+
+
+def LSQR_mprod_tuples_precond(A, C, R, funM, invM, itermax=25, tol=10 ** -5, X_true=None):
+    ### A - m*p*n, C - m*1*n ###
+    # initialization
+    def m_prod_fun(X, Y, funM=funM, invM=invM):
+        return m_prod(X, Y, funM, invM)
+    def m_prod_three_fun(X, Y, Z, funM=funM, invM=invM):
+        return m_prod_three(X, Y, Z, funM, invM)
+    A_tensor = m_prod_fun(A.transpose(1, 0, 2), A)
+
+    Y = np.zeros((A.shape[1], C.shape[1], C.shape[2]))  # X - l*s*p
+
+    U, beta = normalize(C, funM, invM)
+
+    V_wave_p = m_prod_three_fun(R.transpose(1, 0, 2), A.transpose(1, 0, 2), U)
+    V, alpha = normalize(V_wave_p, funM, invM) # V - l*s*p
+
+    W = V.copy()
+    ro_ = alpha.copy()
+    fi_ = beta.copy()
+    if X_true is not None:
+        X = m_prod_fun(R, Y)
+        E0 = X - X_true
+        error_each_step = [nu_tensor_norm(E0, A_tensor, funM, invM)]
+    for i in range(itermax):
+        # bidiagonalization
+
+        U_wave = m_prod_three_fun(A, R, V) - m_prod_fun(U, alpha)
+        U, beta = normalize(U_wave, funM, invM)
+
+        V_wave = m_prod_three_fun(R.transpose(1,0,2), A.transpose(1,0,2), U) - m_prod_fun(V, beta)
+        V, alpha = normalize(V_wave, funM, invM) # V - l*s*p
+
+        # orthogonal transformation
+        ro = invM(np.sqrt(funM(ro_) ** 2 + funM(beta) ** 2))
+        # ro = np.sqrt(ro_ ** 2 + beta ** 2)
+        ro_inv = inverse_of_tube(ro, funM, invM)
+        c = m_prod_fun(ro_inv, ro_)
+        s = m_prod_fun(ro_inv, beta)
+
+        theta = m_prod_fun(s, alpha)
+        ro_ = m_prod_fun(c, alpha)
+        fi = m_prod_fun(c, fi_)
+        fi_ = -m_prod_fun(s, fi_)
+        Y = Y + m_prod_three_fun(W, ro_inv, fi)
+        W = V - m_prod_three_fun(W, ro_inv, theta)
+
+        # if abs(fi_) < tol:
+        #     break
+        if X_true is not None:
+            X = m_prod_fun(R, Y)
+            E = X - X_true
+            error_each_step.append(nu_tensor_norm(E, A_tensor, funM, invM))
+
+    return X, error_each_step
+
 
 def inverse_tensor(tensor, funM, invM):
     tensor_hat = funM(tensor)
