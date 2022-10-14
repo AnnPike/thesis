@@ -142,8 +142,9 @@ def LSQR_mprod_tuples(A, C, funM, invM, itermax=25, tol=10 ** -5, X_true=None):
     def m_prod_three_fun(X, Y, Z, funM=funM, invM=invM):
         return m_prod_three(X, Y, Z, funM, invM)
     A_tensor = m_prod_fun(np.transpose(A, (1, 0, 2)), A)
-
+    list_of_X = []
     X = np.zeros((A.shape[1], C.shape[1], C.shape[2]))  # X - l*s*p
+    list_of_X.append(X)
     U, beta = normalize(C, funM, invM)
 
     V_wave = m_prod_fun(np.transpose(A, (1, 0, 2)), U)
@@ -152,7 +153,9 @@ def LSQR_mprod_tuples(A, C, funM, invM, itermax=25, tol=10 ** -5, X_true=None):
     W = V.copy()
     ro_ = alpha.copy()
     fi_ = beta.copy()
+
     if X_true is not None:
+
         E0 = X - X_true
         error_each_step = [nu_tensor_norm(E0, A_tensor, funM, invM)]
     for i in range(itermax):
@@ -175,6 +178,7 @@ def LSQR_mprod_tuples(A, C, funM, invM, itermax=25, tol=10 ** -5, X_true=None):
         fi = m_prod_fun(c, fi_)
         fi_ = -m_prod_fun(s, fi_)
         X = X + m_prod_three_fun(W, ro_inv, fi)
+        list_of_X.append(X)
         W = V - m_prod_three_fun(W, ro_inv, theta)
 
         # if abs(fi_) < tol:
@@ -183,7 +187,7 @@ def LSQR_mprod_tuples(A, C, funM, invM, itermax=25, tol=10 ** -5, X_true=None):
             E = X - X_true
             error_each_step.append(nu_tensor_norm(E, A_tensor, funM, invM))
 
-    return X, error_each_step
+    return X, error_each_step, list_of_X
 
 
 
@@ -198,7 +202,9 @@ def LSQR_mprod_tuples_precond(A, C, R, funM, invM, itermax=25, tol=10 ** -5, X_t
     A_tensor = m_prod_fun(A.transpose(1, 0, 2), A)
 
     Y = np.zeros((A.shape[1], C.shape[1], C.shape[2]))  # X - l*s*p
-
+    list_of_X = []
+    X = m_prod_fun(R, Y)
+    list_of_X.append(X)
     U, beta = normalize(C, funM, invM)
 
     V_wave_p = m_prod_three_fun(R.transpose(1, 0, 2), A.transpose(1, 0, 2), U)
@@ -207,8 +213,9 @@ def LSQR_mprod_tuples_precond(A, C, R, funM, invM, itermax=25, tol=10 ** -5, X_t
     W = V.copy()
     ro_ = alpha.copy()
     fi_ = beta.copy()
+
     if X_true is not None:
-        X = m_prod_fun(R, Y)
+        list_of_X.append(X)
         E0 = X - X_true
         error_each_step = [nu_tensor_norm(E0, A_tensor, funM, invM)]
     for i in range(itermax):
@@ -232,16 +239,17 @@ def LSQR_mprod_tuples_precond(A, C, R, funM, invM, itermax=25, tol=10 ** -5, X_t
         fi = m_prod_fun(c, fi_)
         fi_ = -m_prod_fun(s, fi_)
         Y = Y + m_prod_three_fun(W, ro_inv, fi)
+        X = m_prod_fun(R, Y)
+        list_of_X.append(X)
         W = V - m_prod_three_fun(W, ro_inv, theta)
 
         # if abs(fi_) < tol:
         #     break
         if X_true is not None:
-            X = m_prod_fun(R, Y)
             E = X - X_true
             error_each_step.append(nu_tensor_norm(E, A_tensor, funM, invM))
 
-    return X, error_each_step
+    return X, error_each_step, list_of_X
 
 
 def inverse_tensor(tensor, funM, invM):
