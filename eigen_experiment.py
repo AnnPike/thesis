@@ -21,7 +21,7 @@ def nu_tensor_norm(E, A_tensor, funM, invM):
 
 def generate_tall_matrix(m, p, eigenmin):
     H = ortho_group.rvs(dim=m)
-    eigen = np.sqrt((np.random.rand(p)+1)*eigenmin)
+    eigen = np.sqrt((np.random.rand(p)*100+1)*eigenmin)
     # P = eigen.reshape(1, -1)*A_o[:, :p]
     LAM = np.zeros((p, p))
     np.fill_diagonal(LAM, eigen)
@@ -176,7 +176,7 @@ for i in range(4):
     # l1 = plt.plot(error, c='b',
     #               label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
     # plt.plot(bound_vector, 'b--', label='bound')
-    res = norm_res_norm_steps(A_tensor, list_of_X, B, funM, invM)
+    res = res_norm_steps(A_tensor, list_of_X, B, funM, invM)
     l1 = plt.plot(res, c='b',
                   label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
 
@@ -187,7 +187,7 @@ for i in range(4):
     a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor, funM)
     # l2 = plt.plot(error, c='y', label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
     # plt.plot(bound_vector, 'y--', label='bound')
-    res = norm_res_norm_steps(A_tensor, list_of_X, B, funM, invM)
+    res = res_norm_steps(A_tensor, list_of_X, B, funM, invM)
     l2 = plt.plot(res, c='y',
                   label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
     s = 300
@@ -197,29 +197,29 @@ for i in range(4):
     A_tensor_precond = m_prod(A_tensor, R, funM, invM)
     # X_true_new = m_prod(P, X_true, funM, invM)
     X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
-    bound_vector = bond_vector_f(np.arange(iters + 1), 2 * 10 ** 4, error[0])
+    bound_vector = bond_vector_f(np.arange(iters + 1), 2 * 10 ** 9, error[0])
     a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor_precond, funM)
     # l3 = plt.plot(error, c='purple', label=f'BLENDENPIK\n$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
-    res = norm_res_norm_steps(A_tensor, list_of_X, B, funM, invM)
+    res = res_norm_steps(A_tensor, list_of_X, B, funM, invM)
     l3 = plt.plot(res, c='purple',
-                  label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}\nBLENDENPIK')
+                  label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}\nprecondition with QR, R from sampled A')
     A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', M_random, X_true)
     P, R = algo.sampling_QR(A_tensor, funM, invM, s=s)
     A_tensor_precond = m_prod(A_tensor, R, funM, invM)
     # X_true_new = m_prod(P, X_true, funM, invM)
     X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
-    bound_vector = bond_vector_f(np.arange(iters + 1), 2 * 10 ** 4, error[0])
+    bound_vector = bond_vector_f(np.arange(iters + 1), 2, error[0])
     a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor_precond, funM)
     # l4 = plt.plot(error, c='orange', label=f'BLENDENPIK\n$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
-    res = norm_res_norm_steps(A_tensor, list_of_X, B, funM, invM)
+    res = res_norm_steps(A_tensor, list_of_X, B, funM, invM)
     l4 = plt.plot(res, c='orange',
-                  label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}\nBLENDENPIK')
+                  label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}\nprecondition with QR, R from sampled A')
 
     plt.legend(loc='upper right')
     plt.xlabel('iterations')
     plt.yscale("log")
     plt.title(f'random state of M = {M_random}')
-    plt.ylabel('normalized A^T*residual')
+    plt.ylabel('residual')
     # plt.legend(loc='upper right')
 #
 line_labels = [f'eigvals of Ahat^TA_hat for first slice are 1-2, second slice: 1*10^{degree}-2*10^{degree}',
@@ -229,7 +229,7 @@ line_labels = [f'eigvals of Ahat^TA_hat for first slice are 1-2, second slice: 1
 fig.legend([l1, l2, l3, l4], labels=line_labels, bbox_to_anchor=(0.8, 0.7))
 plt.suptitle(f'M prod LSQR, A shape is {m}, {p}, 2, s={s}')
 plt.tight_layout()
-plt.savefig(path_to_save+f'eigenvalues_experiment_LSQR_blendenpik_{s}_res_norm')
+plt.savefig(path_to_save+f'eigenvalues_experiment_LSQR_blendenpik_{s}_res')
 plt.show()
 
 
