@@ -219,7 +219,7 @@ for i in range(4):
     plt.xlabel('iterations')
     plt.yscale("log")
     plt.title(f'random state of M = {M_random}')
-    plt.ylabel('residual')
+    plt.ylabel('normalized A^T*residual')
     # plt.legend(loc='upper right')
 #
 line_labels = [f'eigvals of Ahat^TA_hat for first slice are 1-2, second slice: 1*10^{degree}-2*10^{degree}',
