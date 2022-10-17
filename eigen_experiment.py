@@ -170,12 +170,14 @@ for i in range(4):
 
     A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', M_random, X_true)
     X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
-    bound_vector = bond_vector_f(np.arange(iters+1), 2*10**degree, error[0])
 
     a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor, funM)
+    k1 = a1_max/a1_min
+    k2 = a2_max/a2_min
+    bound_vector = bond_vector_f(np.arange(iters + 1), max(k1, k2), error[0])
     # l1 = plt.plot(error, c='b',
     #               label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
-    # plt.plot(bound_vector, 'b--', label='bound')
+    # plt.plot(bound_vector, 'b--')
     res = res_norm_steps(A_tensor, list_of_X, B, funM, invM)
     l1 = plt.plot(res, c='b',
                   label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
@@ -183,10 +185,12 @@ for i in range(4):
 
     A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', M_random, X_true)
     X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
-    bound_vector = bond_vector_f(np.arange(iters+1), 2, error[0])
     a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor, funM)
+    k1 = a1_max/a1_min
+    k2 = a2_max/a2_min
+    bound_vector = bond_vector_f(np.arange(iters + 1), max(k1, k2), error[0])
     # l2 = plt.plot(error, c='y', label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
-    # plt.plot(bound_vector, 'y--', label='bound')
+    # plt.plot(bound_vector, 'y--')
     res = res_norm_steps(A_tensor, list_of_X, B, funM, invM)
     l2 = plt.plot(res, c='y',
                   label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
@@ -197,8 +201,11 @@ for i in range(4):
     A_tensor_precond = m_prod(A_tensor, R, funM, invM)
     # X_true_new = m_prod(P, X_true, funM, invM)
     X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
-    bound_vector = bond_vector_f(np.arange(iters + 1), 2 * 10 ** 9, error[0])
     a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor_precond, funM)
+    k1 = a1_max/a1_min
+    k2 = a2_max/a2_min
+    bound_vector = bond_vector_f(np.arange(iters + 1), max(k1, k2), error[0])
+    # plt.plot(bound_vector, c='purple', ls='--')
     # l3 = plt.plot(error, c='purple', label=f'BLENDENPIK\n$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
     res = res_norm_steps(A_tensor, list_of_X, B, funM, invM)
     l3 = plt.plot(res, c='purple',
@@ -208,8 +215,11 @@ for i in range(4):
     A_tensor_precond = m_prod(A_tensor, R, funM, invM)
     # X_true_new = m_prod(P, X_true, funM, invM)
     X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
-    bound_vector = bond_vector_f(np.arange(iters + 1), 2, error[0])
     a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor_precond, funM)
+    k1 = a1_max/a1_min
+    k2 = a2_max/a2_min
+    bound_vector = bond_vector_f(np.arange(iters + 1), max(k1, k2), error[0])
+    # plt.plot(bound_vector, c='orange', ls='--')
     # l4 = plt.plot(error, c='orange', label=f'BLENDENPIK\n$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
     res = res_norm_steps(A_tensor, list_of_X, B, funM, invM)
     l4 = plt.plot(res, c='orange',
@@ -222,14 +232,14 @@ for i in range(4):
     plt.ylabel('residual')
     # plt.legend(loc='upper right')
 #
-line_labels = [f'eigvals of Ahat^TA_hat for first slice are 1-2, second slice: 1*10^{degree}-2*10^{degree}',
-               'all eigenvalues of Ahat^TA_hat are from 1 to 2',
-               f'eigvals of Ahat^TA_hat for first slice are 1-2, second slice: 1*10^{degree}-2*10^{degree}',
-               'all eigenvalues of Ahat^TA_hat are from 1 to 2']
+line_labels = [f'eigvals of Ahat^TA_hat for first slice are 1-100, second slice: 1*10^{degree}-100*10^{degree}',
+               'all eigenvalues of Ahat^TA_hat are from 1 to 100',
+               f'eigvals of Ahat^TA_hat for first slice are 1-100, second slice: 1*10^{degree}-100*10^{degree}',
+               'all eigenvalues of Ahat^TA_hat are from 1 to 100']
 fig.legend([l1, l2, l3, l4], labels=line_labels, bbox_to_anchor=(0.8, 0.7))
 plt.suptitle(f'M prod LSQR, A shape is {m}, {p}, 2, s={s}')
 plt.tight_layout()
-plt.savefig(path_to_save+f'eigenvalues_experiment_LSQR_blendenpik_{s}_res')
+plt.savefig(path_to_save+f'eigenvalues_experiment_LSQR_sample_{s}_k100_res')
 plt.show()
 
 
