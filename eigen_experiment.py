@@ -3,10 +3,9 @@ np.random.seed(0)
 from mprod import  m_prod
 from mprod import  generate_haar, generate_dct
 import algo
-import matplotlib.pyplot as plt
 from scipy.stats import ortho_group
-
-
+import helper_plot
+import matplotlib.pyplot as plt
 
 def bound(i, k, E0):
     return 2*E0*((np.sqrt(k)-1)/(np.sqrt(k)+1))**i
@@ -19,9 +18,11 @@ def nu_tensor_norm(E, A_tensor, funM, invM):
     return algo.tensor_frob_norm(algo.m_prod_three(E.transpose(1, 0, 2), A_tensor, E, funM, invM))
 
 
-def generate_tall_matrix(m, p, eigenmin):
+
+cond=10**6
+def generate_tall_matrix(m, p, eigenmin, k=cond):
     H = ortho_group.rvs(dim=m)
-    eigen = np.sqrt((np.random.rand(p)*100+1)*eigenmin)
+    eigen = np.sqrt((np.random.rand(p)*k+1)*eigenmin)
     # P = eigen.reshape(1, -1)*A_o[:, :p]
     LAM = np.zeros((p, p))
     np.fill_diagonal(LAM, eigen)
@@ -145,153 +146,79 @@ def get_eigen_tall(A, funM):
 
     return a1_min, a1_max, a2_min, a2_max
 
+
+def calculate_cond(A):
+    a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A, funM)
+    k1 = a1_max/a1_min
+    k2 = a2_max/a2_min
+    return int(max(k1, k2), 0)
+
+
 path_to_save = '/home/anna/uni/thesis/numerical_results/'
 m, p = 500, 50
-X_true = np.random.randn(p, 1, 2)
+iters = 40
 M_list = ['DCT', 21, 127, 333]
+plot_what_options = ['residual', 'error', 'normalized residual', 'normalized error']
+plot_what = 'error'
+
 degree = 9
+X_true = np.random.randn(p, 1, 2)
 A_tall_hat_bad = generate_tall_A_hat(m, p, eigen1=1, eigen2=10**degree)
 A_tall_hat_good = generate_tall_A_hat(m, p, eigen1=1, eigen2=1)
 
-fig = plt.figure(figsize=(15, 10))
-#LSQR parameters
-iters = 40
-
-
+# genrating vectors to plot
+plot_over_iter_orig_bad = []
+plot_over_iter_orig_good = []
+plot_over_iter_precond_bad = []
+plot_over_iter_precond_good = []
+dict_of_cond = {}
 
 for i in range(4):
     M_random = M_list[i]
+    dict_of_cond[i] = {}
     if M_random == 'DCT':
         funM, invM = generate_dct(2)
     else:
         funM, invM = generate_haar(2, random_state=M_random)
 
-    plt.subplot(2, 2, i+1)
-
     A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', M_random, X_true)
+    dict_of_cond[i]['orig bad'] = calculate_cond(A_tensor)
     X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
-
-    a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor, funM)
-    k1 = a1_max/a1_min
-    k2 = a2_max/a2_min
-    bound_vector = bond_vector_f(np.arange(iters + 1), max(k1, k2), error[0])
-    # l1 = plt.plot(error, c='b',
-    #               label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
-    # plt.plot(bound_vector, 'b--')
-    res = res_norm_steps(A_tensor, list_of_X, B, funM, invM)
-    l1 = plt.plot(res, c='b',
-                  label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
+    plot_over_iter_orig_bad.append(error)
 
 
     A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', M_random, X_true)
+    dict_of_cond[i]['orig good'] = calculate_cond(A_tensor)
     X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
-    a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor, funM)
-    k1 = a1_max/a1_min
-    k2 = a2_max/a2_min
-    bound_vector = bond_vector_f(np.arange(iters + 1), max(k1, k2), error[0])
-    # l2 = plt.plot(error, c='y', label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
-    # plt.plot(bound_vector, 'y--')
-    res = res_norm_steps(A_tensor, list_of_X, B, funM, invM)
-    l2 = plt.plot(res, c='y',
-                  label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
+    plot_over_iter_orig_good.append(error)
+
+    #preconditioning
     s = 300
 
     A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', M_random, X_true)
     P, R = algo.sampling_QR(A_tensor, funM, invM, s=s)
     A_tensor_precond = m_prod(A_tensor, R, funM, invM)
-    # X_true_new = m_prod(P, X_true, funM, invM)
+    dict_of_cond[i]['prec bad'] = calculate_cond(A_tensor_precond)
+
+
     X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
-    a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor_precond, funM)
-    k1 = a1_max/a1_min
-    k2 = a2_max/a2_min
-    bound_vector = bond_vector_f(np.arange(iters + 1), max(k1, k2), error[0])
-    # plt.plot(bound_vector, c='purple', ls='--')
-    # l3 = plt.plot(error, c='purple', label=f'BLENDENPIK\n$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
-    res = res_norm_steps(A_tensor, list_of_X, B, funM, invM)
-    l3 = plt.plot(res, c='purple',
-                  label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}\nprecondition with QR, R from sampled A')
+    plot_over_iter_precond_bad.append(error)
+
     A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', M_random, X_true)
     P, R = algo.sampling_QR(A_tensor, funM, invM, s=s)
     A_tensor_precond = m_prod(A_tensor, R, funM, invM)
-    # X_true_new = m_prod(P, X_true, funM, invM)
-    X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
-    a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A_tensor_precond, funM)
-    k1 = a1_max/a1_min
-    k2 = a2_max/a2_min
-    bound_vector = bond_vector_f(np.arange(iters + 1), max(k1, k2), error[0])
-    # plt.plot(bound_vector, c='orange', ls='--')
-    # l4 = plt.plot(error, c='orange', label=f'BLENDENPIK\n$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
-    res = res_norm_steps(A_tensor, list_of_X, B, funM, invM)
-    l4 = plt.plot(res, c='orange',
-                  label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}\nprecondition with QR, R from sampled A')
+    dict_of_cond[i]['prec good'] = calculate_cond(A_tensor_precond)
 
-    plt.legend(loc='upper right')
-    plt.xlabel('iterations')
-    plt.yscale("log")
-    plt.title(f'random state of M = {M_random}')
-    plt.ylabel('residual')
-    # plt.legend(loc='upper right')
-#
-line_labels = [f'eigvals of Ahat^TA_hat for first slice are 1-100, second slice: 1*10^{degree}-100*10^{degree}',
-               'all eigenvalues of Ahat^TA_hat are from 1 to 100',
-               f'eigvals of Ahat^TA_hat for first slice are 1-100, second slice: 1*10^{degree}-100*10^{degree}',
-               'all eigenvalues of Ahat^TA_hat are from 1 to 100']
-fig.legend([l1, l2, l3, l4], labels=line_labels, bbox_to_anchor=(0.8, 0.7))
-plt.suptitle(f'M prod LSQR, A shape is {m}, {p}, 2, s={s}')
-plt.tight_layout()
-plt.savefig(path_to_save+f'eigenvalues_experiment_LSQR_sample_{s}_k100_res')
+    X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
+    plot_over_iter_precond_good.append(error)
+
+
+helper_plot.plot_4M_2A_precond(M_list, plot_over_iter_orig_bad, plot_over_iter_orig_good,
+                               plot_over_iter_precond_bad, plot_over_iter_precond_good,
+                               plot_what, degree, m, p, s, dict_of_cond)
+
+plt.savefig(path_to_save + f'eigenvalues_experiment_LSQR_sample_{s}_k{k}_{plot_what.replace(" ", "_")}_{cond}')
 plt.show()
 
 
-iters = 30
 
-# fig = plt.figure(figsize=(15, 10))
-# for i in range(4):
-#     M_random = M_list[i]
-#     if M_random == 'DCT':
-#         funM, invM = generate_dct(2)
-#     else:
-#         funM, invM = generate_haar(2, random_state=M_random)
-#
-#     plt.subplot(2, 2, i + 1)
-#
-#     A_tensor, B = generate_square_A(A_tall_hat_bad, 'original M', M_random, X_true)
-#     X, error = algo.CG_M_tensor(A_tensor, B, funM, invM, iters, X_true=X_true)
-#     bound_vector = bond_vector_f(np.arange(iters+1), 2*10**4, error[0])
-#
-#     a1_min, a1_max, a2_min, a2_max = get_eigen_sym(A_tensor, funM)
-#     l1 = plt.plot(error, c='b', label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
-#     # plt.plot(bound_vector, 'b--', label='bound')
-#
-#     A_tensor, B = generate_square_A(A_tall_hat_good, 'original M', M_random, X_true)
-#     X, error = algo.CG_M_tensor(A_tensor, B, funM, invM, iters, X_true=X_true)
-#     # bound_vector = bond_vector_f(np.arange(iters+1), 2, error[0])
-#     a1_min, a1_max, a2_min, a2_max = get_eigen_sym(A_tensor, funM)
-#     l2 = plt.plot(error, c='y', label=f'$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
-#     # plt.plot(bound_vector, 'y--', label='bound')
-#
-#     A_tensor, B = generate_square_A(A_tall_hat_bad, 'DCT', M_random, X_true)
-#     X, error = algo.CG_M_tensor(A_tensor, B, funM, invM, iters, X_true=X_true)
-#     bound_vector = bond_vector_f(np.arange(iters+1), 2*10**4, error[0])
-#
-#     a1_min, a1_max, a2_min, a2_max = get_eigen_sym(A_tensor, funM)
-#     l3 = plt.plot(error, c='purple', label=f'A obtained with DCT\n$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
-#
-#     A_tensor, B = generate_square_A(A_tall_hat_good, 'DCT', M_random, X_true)
-#     X, error = algo.CG_M_tensor(A_tensor, B, funM, invM, iters, X_true=X_true)
-#     bound_vector = bond_vector_f(np.arange(iters+1), 2, error[0])
-#     a1_min, a1_max, a2_min, a2_max = get_eigen_sym(A_tensor, funM)
-#     l4 = plt.plot(error, c='orange', label=f'A obtained with DCT\n$min(\lambda_1)$={a1_min:.0e}, $max(\lambda_1)$={a1_max:.0e}\n$min(\lambda_2)$={a2_min:.0e}, $max(\lambda_2)$={a2_max:.0e}')
-#
-#     plt.xlabel('iterations')
-#     plt.yscale("log")
-#     plt.title(f'random state of M = {M_random}')
-#     plt.ylabel('error')
-#     plt.legend(loc='upper right')
-# fig.legend([l1, l2, l3, l4], labels=line_labels, bbox_to_anchor=(0.8, 0.7))
-# plt.suptitle('M prod conjugate gradient')
-# plt.tight_layout()
-# plt.savefig(path_to_save+'eigenvalues_experiment_CG_add_blendenpik')
-# plt.show()
-
-link = 'https://www.dropbox.com/scl/fo/vwn07zx7omd0zvqw0laxs/h?dl=0&rlkey=oyllju7bignxhr1liqdqh8b23'
