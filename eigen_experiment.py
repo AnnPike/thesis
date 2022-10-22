@@ -1,5 +1,4 @@
 import numpy as np
-np.random.seed(1000)
 from mprod import  m_prod
 from mprod import  generate_haar, generate_dct
 import algo
@@ -152,17 +151,19 @@ def calculate_cond(A, funM):
 
 
 path_to_save = '/home/anna/uni/thesis/numerical_results/'
-m, p = 500, 50
+m, p = 5*1000, 250
 k = 10**6
 
 iters = 40
 M_list = ['DCT', 21, 127, 333]
 plot_what_options = ['residual', 'error', 'normalized residual', 'normalized error']
-plot_what = 'error'
+plot_what = 'normalized error'
 
 degree = 6
 X_true = np.random.randn(p, 1, 2)
+np.random.seed(1)
 A_tall_hat_bad = generate_tall_A_hat(m, p, eigen1=1, eigen2=10**degree, k=k)
+np.random.seed(1)
 A_tall_hat_good = generate_tall_A_hat(m, p, eigen1=1, eigen2=1, k=k)
 
 # genrating vectors to plot
@@ -183,16 +184,21 @@ for i in range(4):
     A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', funM, invM, X_true)
     dict_of_cond[i]['orig bad'] = calculate_cond(A_tensor, funM)
     X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
-    plot_over_iter_orig_bad.append(error)
+    if plot_what=='error':
+        plot_over_iter_orig_bad.append(error)
+    if plot_what == 'normalized error':
+        plot_over_iter_orig_bad.append(error/error[0])
 
 
     A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', funM, invM, X_true)
     dict_of_cond[i]['orig good'] = calculate_cond(A_tensor, funM)
     X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
-    plot_over_iter_orig_good.append(error)
-
+    if plot_what=='error':
+        plot_over_iter_orig_good.append(error)
+    if plot_what == 'normalized error':
+        plot_over_iter_orig_good.append(error/error[0])
     #preconditioning
-    s = 300
+    s = p*6
 
     A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', funM, invM, X_true)
     P, R = algo.sampling_QR(A_tensor, funM, invM, s=s)
@@ -201,16 +207,20 @@ for i in range(4):
 
 
     X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
-    plot_over_iter_precond_bad.append(error)
-
+    if plot_what=='error':
+        plot_over_iter_precond_bad.append(error)
+    if plot_what == 'normalized error':
+        plot_over_iter_precond_bad.append(error/error[0])
     A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', funM, invM, X_true)
     P, R = algo.sampling_QR(A_tensor, funM, invM, s=s)
     A_tensor_precond = m_prod(A_tensor, R, funM, invM)
     dict_of_cond[i]['prec good'] = calculate_cond(A_tensor_precond, funM)
 
     X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
-    plot_over_iter_precond_good.append(error)
-
+    if plot_what=='error':
+        plot_over_iter_precond_good.append(error)
+    if plot_what == 'normalized error':
+        plot_over_iter_precond_good.append(error/error[0])
 
 helper_plot.plot_4M_2A_precond(M_list, plot_over_iter_orig_bad, plot_over_iter_orig_good,
                                plot_over_iter_precond_bad, plot_over_iter_precond_good,
