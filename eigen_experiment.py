@@ -1,11 +1,12 @@
 import numpy as np
-np.random.seed(0)
+np.random.seed(1000)
 from mprod import  m_prod
 from mprod import  generate_haar, generate_dct
 import algo
 from scipy.stats import ortho_group
 import helper_plot
 import matplotlib.pyplot as plt
+
 
 def bound(i, k, E0):
     return 2*E0*((np.sqrt(k)-1)/(np.sqrt(k)+1))**i
@@ -18,12 +19,11 @@ def nu_tensor_norm(E, A_tensor, funM, invM):
     return algo.tensor_frob_norm(algo.m_prod_three(E.transpose(1, 0, 2), A_tensor, E, funM, invM))
 
 
-
-cond=10**6
-def generate_tall_matrix(m, p, eigenmin, k=cond):
+def generate_tall_matrix(m, p, eigenmin, k):
     H = ortho_group.rvs(dim=m)
-    eigen = np.sqrt((np.random.rand(p)*k+1)*eigenmin)
-    # P = eigen.reshape(1, -1)*A_o[:, :p]
+    low = np.sqrt(eigenmin)
+    high = np.sqrt(eigenmin*k)
+    eigen = np.random.uniform(low, high, p)
     LAM = np.zeros((p, p))
     np.fill_diagonal(LAM, eigen)
     P = np.matmul(H[:, :p], LAM)
@@ -32,20 +32,17 @@ def generate_tall_matrix(m, p, eigenmin, k=cond):
     return A
 
 
-def generate_tall_A_hat(m, p, eigen1, eigen2):
+def generate_tall_A_hat(m, p, eigen1, eigen2, k):
 
-    A1 = generate_tall_matrix(m, p, eigen1)
-    A2 = generate_tall_matrix(m, p, eigen2)
+    A1 = generate_tall_matrix(m, p, eigen1, k)
+    A2 = generate_tall_matrix(m, p, eigen2, k)
 
     A_hat = np.concatenate([A1.reshape(m, p, 1), A2.reshape(m, p, 1)], 2)
     return A_hat
 
 
-def generate_tall_A(A_hat, transform, randomM, X_true):
-    if randomM!='DCT':
-        funM, invM = generate_haar(2, random_state=randomM)
-    else:
-        funM, invM = generate_dct(2)
+def generate_tall_A(A_hat, transform, funM, invM, X_true):
+
     if transform == 'DCT':
         fun_dct, inv_dct = generate_dct(2)
         A_tall_tensor = inv_dct(A_hat)
@@ -147,24 +144,26 @@ def get_eigen_tall(A, funM):
     return a1_min, a1_max, a2_min, a2_max
 
 
-def calculate_cond(A):
+def calculate_cond(A, funM):
     a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A, funM)
     k1 = a1_max/a1_min
     k2 = a2_max/a2_min
-    return int(max(k1, k2), 0)
+    return int(max(k1, k2))
 
 
 path_to_save = '/home/anna/uni/thesis/numerical_results/'
 m, p = 500, 50
+k = 10**6
+
 iters = 40
 M_list = ['DCT', 21, 127, 333]
 plot_what_options = ['residual', 'error', 'normalized residual', 'normalized error']
 plot_what = 'error'
 
-degree = 9
+degree = 6
 X_true = np.random.randn(p, 1, 2)
-A_tall_hat_bad = generate_tall_A_hat(m, p, eigen1=1, eigen2=10**degree)
-A_tall_hat_good = generate_tall_A_hat(m, p, eigen1=1, eigen2=1)
+A_tall_hat_bad = generate_tall_A_hat(m, p, eigen1=1, eigen2=10**degree, k=k)
+A_tall_hat_good = generate_tall_A_hat(m, p, eigen1=1, eigen2=1, k=k)
 
 # genrating vectors to plot
 plot_over_iter_orig_bad = []
@@ -181,33 +180,33 @@ for i in range(4):
     else:
         funM, invM = generate_haar(2, random_state=M_random)
 
-    A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', M_random, X_true)
-    dict_of_cond[i]['orig bad'] = calculate_cond(A_tensor)
+    A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', funM, invM, X_true)
+    dict_of_cond[i]['orig bad'] = calculate_cond(A_tensor, funM)
     X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
     plot_over_iter_orig_bad.append(error)
 
 
-    A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', M_random, X_true)
-    dict_of_cond[i]['orig good'] = calculate_cond(A_tensor)
+    A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', funM, invM, X_true)
+    dict_of_cond[i]['orig good'] = calculate_cond(A_tensor, funM)
     X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
     plot_over_iter_orig_good.append(error)
 
     #preconditioning
     s = 300
 
-    A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', M_random, X_true)
+    A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', funM, invM, X_true)
     P, R = algo.sampling_QR(A_tensor, funM, invM, s=s)
     A_tensor_precond = m_prod(A_tensor, R, funM, invM)
-    dict_of_cond[i]['prec bad'] = calculate_cond(A_tensor_precond)
+    dict_of_cond[i]['prec bad'] = calculate_cond(A_tensor_precond, funM)
 
 
     X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
     plot_over_iter_precond_bad.append(error)
 
-    A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', M_random, X_true)
+    A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', funM, invM, X_true)
     P, R = algo.sampling_QR(A_tensor, funM, invM, s=s)
     A_tensor_precond = m_prod(A_tensor, R, funM, invM)
-    dict_of_cond[i]['prec good'] = calculate_cond(A_tensor_precond)
+    dict_of_cond[i]['prec good'] = calculate_cond(A_tensor_precond, funM)
 
     X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
     plot_over_iter_precond_good.append(error)
@@ -217,7 +216,7 @@ helper_plot.plot_4M_2A_precond(M_list, plot_over_iter_orig_bad, plot_over_iter_o
                                plot_over_iter_precond_bad, plot_over_iter_precond_good,
                                plot_what, degree, m, p, s, dict_of_cond)
 
-plt.savefig(path_to_save + f'eigenvalues_experiment_LSQR_sample_{s}_k{k}_{plot_what.replace(" ", "_")}_{cond}')
+plt.savefig(path_to_save + f'eigenvalues_experiment_LSQR_sample_{s}_k{k}_{plot_what.replace(" ", "_")}')
 plt.show()
 
 

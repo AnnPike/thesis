@@ -25,7 +25,7 @@ def plot_4M_2A_precond(M_list, plot_over_iter_orig_bad, plot_over_iter_orig_good
         plt.title(f'random state of M = {M_random}')
         plt.ylabel(ylabel)
 
-    line_labels = [f'not scaled tensor (by 10^{degree})', 'scaled tensor ($min(\lambda)$=1, max(\lambda)$=2)', f'not scaled tensor (by 10^{degree})', 'scaled tensor']
+    line_labels = [f'not scaled tensor (by 10^{degree})', 'scaled tensor', f'not scaled tensor (by 10^{degree})', 'scaled tensor']
     fig.legend([l1, l2, l3, l4], labels=line_labels, bbox_to_anchor=(0.8, 0.7))
     plt.suptitle(f'M prod LSQR, A shape is {m}, {p}, 2, s={s}')
     plt.tight_layout()
