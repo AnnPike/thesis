@@ -2,134 +2,263 @@ import numpy as np
 from mprod import  m_prod
 from mprod import  generate_haar, generate_dct
 import algo
-import matplotlib.pyplot as plt
 from scipy.stats import ortho_group
-
-
+import helper_plot
+import matplotlib.pyplot as plt
+import time
 
 def bound(i, k, E0):
     return 2*E0*((np.sqrt(k)-1)/(np.sqrt(k)+1))**i
+
+
+bond_vector_f = np.vectorize(bound)
 
 
 def nu_tensor_norm(E, A_tensor, funM, invM):
     return algo.tensor_frob_norm(algo.m_prod_three(E.transpose(1, 0, 2), A_tensor, E, funM, invM))
 
 
-def generate_tall_matrix(m, p, eigenmin):
-    A_o = ortho_group.rvs(dim=m)
-    eigen = np.sqrt((np.random.rand(p)+1)*eigenmin)
-    P = eigen.reshape(1, -1)*A_o[:, :p]
+def generate_tall_matrix(m, p, eigenmin, k):
+    H = ortho_group.rvs(dim=m)
+    low = np.sqrt(eigenmin)
+    high = np.sqrt(eigenmin*k)
+    eigen = np.random.uniform(low, high, p)
+    LAM = np.zeros((p, p))
+    np.fill_diagonal(LAM, eigen)
+    P = np.matmul(H[:, :p], LAM)
     Q = ortho_group.rvs(dim=p)
     A = np.matmul(P, Q.T)
     return A
 
 
-def generate_tall_tensor_eigen(m, p, eigen1, eigen2, funM, invM):
+def generate_tall_A_hat(m, p, eigen1, eigen2, k):
 
-    A1 = generate_tall_matrix(m, p, eigen1)
-    A2 = generate_tall_matrix(m, p, eigen2)
+    A1 = generate_tall_matrix(m, p, eigen1, k)
+    A2 = generate_tall_matrix(m, p, eigen2, k)
 
     A_hat = np.concatenate([A1.reshape(m, p, 1), A2.reshape(m, p, 1)], 2)
-    fun_dct, inv_dct = generate_dct(2)
-    A_tall_tensor = invM(A_hat)
-
-    X_true = np.random.randn(p, 1, 2)
-    B = m_prod(A_tall_tensor, X_true, funM, invM)
-
-    return A_tall_tensor, B, X_true
+    return A_hat
 
 
-def generate_tensor_eigen(m, p, eigen1, eigen2, funM, invM):
-    A1 = generate_tall_matrix(m, p, eigen1)
-    A1 = np.matmul(A1.T, A1)
-    A2 = generate_tall_matrix(m, p, eigen2)
-    A2 = np.matmul(A2.T, A2)
+def generate_tall_A(A_hat, transform, funM, invM, X_true, B):
 
-    A_hat = np.concatenate([A1.reshape(p, p, 1), A2.reshape(p, p, 1)], 2)
-    A_tensor = invM(A_hat)
+    if transform == 'DCT':
+        fun_dct, inv_dct = generate_dct(2)
+        A_tall_tensor = inv_dct(A_hat)
+    else:
+        A_tall_tensor = invM(A_hat)
+    if X_true is None:
+        return A_tall_tensor, B
+    else:
+        B = m_prod(A_tall_tensor, X_true, funM, invM)
+    return A_tall_tensor, B
 
-    X_true = np.random.randn(p, 1, 2)
+
+# def generate_tall_tensor_eigen(m, p, eigen1, eigen2, funM, invM, add_dct):
+#     np.random.seed(0)
+#     A1 = generate_tall_matrix(m, p, eigen1)
+#     A2 = generate_tall_matrix(m, p, eigen2)
+#
+#     A_hat = np.concatenate([A1.reshape(m, p, 1), A2.reshape(m, p, 1)], 2)
+#     fun_dct, inv_dct = generate_dct(2)
+#     A_tall_tensor = invM(A_hat)
+#     if add_dct:
+#         A_tall_tensor = fun_dct(A_tall_tensor)
+#     B = m_prod(A_tall_tensor, X_true, funM, invM)
+#     return A_tall_tensor, B
+#
+#
+# def generate_tensor_eigen(m, p, eigen1, eigen2, funM, invM, add_dct):
+#     np.random.seed(0)
+#     A1 = generate_tall_matrix(m, p, eigen1)
+#     A1 = np.matmul(A1.T, A1)
+#     A2 = generate_tall_matrix(m, p, eigen2)
+#     A2 = np.matmul(A2.T, A2)
+#
+#     A_hat = np.concatenate([A1.reshape(p, p, 1), A2.reshape(p, p, 1)], 2)
+#     fun_dct, inv_dct = generate_dct(2)
+#     A_tensor = invM(A_hat)
+#     if add_dct:
+#         A_tensor = fun_dct(A_tensor)
+#     B = m_prod(A_tensor, X_true, funM, invM)
+#     return A_tensor, B
+
+
+
+def generate_square_A(A_hat, transform, randomM, X_true):
+    if randomM != 'DCT':
+        funM, invM = generate_haar(2, random_state=randomM)
+    else:
+        funM, invM = generate_dct(2)
+    if transform == 'DCT':
+        fun_dct, inv_dct = generate_dct(2)
+        A_tall_tensor = inv_dct(A_hat)
+    else:
+        A_tall_tensor = invM(A_hat)
+    A_tensor = m_prod(A_tall_tensor.transpose(1, 0, 2), A_tall_tensor, funM, invM)
     B = m_prod(A_tensor, X_true, funM, invM)
+    return A_tensor, B
 
-    return A_tensor, B, X_true
+def res_norm(A, X, B, funM, invM):
+    return algo.tensor_frob_norm(m_prod(A, X, funM, invM)-B)
 
 
-m, p = 1000, 10
-iters = 50
+def res_norm_steps(A, list_of_X, B, funM, invM):
+    list_of_res = []
+    for i in range(len(list_of_X)):
+        current_X = list_of_X[i]
+        list_of_res.append(res_norm(A, current_X, B, funM, invM))
+    return list_of_res
+
+
+def norm_res_norm_steps(A, list_of_X, B, funM, invM):
+    list_of_res = []
+    for i in range(len(list_of_X)):
+        current_X = list_of_X[i]
+        residual = m_prod(A, current_X, funM, invM)-B
+        residual_T = algo.tensor_frob_norm(m_prod(A.transpose(1,0,2), residual, funM, invM))
+        norm_res = residual_T/(algo.tensor_frob_norm(A)*algo.tensor_frob_norm(residual))
+        list_of_res.append(norm_res)
+    return list_of_res
+
+
+
+def get_eigen_sym(A, funM):
+    A_hat = funM(A)
+    lambda1 = np.linalg.eigvals(A_hat[:, :, 0])
+    a1_min = np.round(lambda1.min(), 5)
+    a1_max = np.round(lambda1.max(), 5)
+    lambda2 = np.linalg.eigvals(A_hat[:, :, 1])
+    a2_min = np.round(lambda2.min(), 5)
+    a2_max = np.round(lambda2.max(), 5)
+    return a1_min, a1_max, a2_min, a2_max
+
+def get_eigen_tall(A, funM):
+    A_hat = funM(A)
+    A_hat_sym = np.einsum('mpi,pli->mli', A_hat.transpose(1, 0, 2), A_hat)
+    lambda1 = np.linalg.eigvals(A_hat_sym[:, :, 0])
+    a1_min = np.round(lambda1.min(), 5)
+    a1_max = np.round(lambda1.max(), 5)
+    lambda2 = np.linalg.eigvals(A_hat_sym[:, :, 1])
+    a2_min = np.round(lambda2.min(), 5)
+    a2_max = np.round(lambda2.max(), 5)
+
+    return a1_min, a1_max, a2_min, a2_max
+
+
+def calculate_cond(A, funM):
+    a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A, funM)
+    k1 = a1_max/a1_min
+    k2 = a2_max/a2_min
+    return int(max(k1, k2))
+
+def fill_dict_lines(dict_of_lines, A_tensor, B, funM, invM, error, list_of_X, plot_what, matrix_type):
+    if plot_what == 'error':
+        dict_of_lines[i][matrix_type] = error
+    if plot_what == 'normalized error':
+        dict_of_lines[i][matrix_type] = error / error[0]
+    if plot_what == 'residual':
+        list_of_res = res_norm_steps(A_tensor, list_of_X, B, funM, invM)
+        dict_of_lines[i][matrix_type] = list_of_res
+    if plot_what == 'normalized residual':
+        list_of_res = norm_res_norm_steps(A_tensor, list_of_X, B, funM, invM)
+        dict_of_lines[i][matrix_type] = list_of_res
+    return dict_of_lines
+
+
 path_to_save = '/home/anna/uni/thesis/numerical_results/'
+np.random.seed(1)
+
+iters = 40
+M_list = ['DCT', 21, 127, 333]
+
+# define parameters
+m, p = 5000, 100
+k = 100
+degree = 6
+
+random_X = np.random.randn(p, 1, 2)
 
 
-plt.figure(figsize=(15, 10))
-for i in range(4):
-    if i == 0:
-        M_random = 'DCT'
-        funM, invM = generate_dct(2)
+for X_true in [None, random_X]:
+    if X_true is None:
+        B = np.random.randn(m, 1, 2)
+        plot_what_options = ['normalized residual', 'residual']
     else:
-        M_random = np.random.randint(1000)
-        funM, invM = generate_haar(2, random_state=M_random)
-
-    A_tensor, B, X_true = generate_tall_tensor_eigen(m, p, 1, 10**4, funM, invM)
-    X, error = algo.LSQR_mprod(A_tensor, B, funM, invM, iters, X_true=X_true)
-    bond_vector_f = np.vectorize(bound)
-    bound_vector = bond_vector_f(np.arange(iters+1), 2*10**4, error[0])
+        B = None
+        plot_what_options = ['residual', 'error', 'normalized residual', 'normalized error']
 
 
-    plt.subplot(2, 2, i+1)
-    plt.plot(error, c='b', label='eigvals of Ahat^TA_hat for first slice are 1-2, second slice: 1*10^9-2*10^9')
-    plt.plot(bound_vector, 'b--', label='bound')
-    plt.xlabel('iterations')
-    plt.yscale("log")
-
-    A_tensor, B, X_true = generate_tall_tensor_eigen(m, p, 1, 1, funM, invM)
-    X, error = algo.LSQR_mprod(A_tensor, B, funM, invM, iters, X_true=X_true)
-    bound_vector = bond_vector_f(np.arange(iters+1), 2, error[0])
-    plt.plot(error, c='y', label='all eigenvalues of Ahat^TA_hat are from 1 to 2')
-    plt.plot(bound_vector, 'y--', label='bound')
-    plt.xlabel('iterations')
-    plt.yscale("log")
-    plt.title(f'random state of M = {M_random}')
-    plt.ylabel('error')
-    plt.legend()
-plt.suptitle('M prod LSQR')
-plt.tight_layout()
-plt.savefig(path_to_save+'eigenvalues_experiment_LSQR')
-plt.show()
-
-iters = 20
-plt.figure(figsize=(15, 10))
-for i in range(4):
-    if i == 0:
-        M_random = 'DCT'
-        funM, invM = generate_dct(2)
-    else:
-        M_random = np.random.randint(1000)
-        funM, invM = generate_haar(2, random_state=M_random)
-
-    A_tensor, B, X_true = generate_tensor_eigen(m, p, 1, 10**4, funM, invM)
-    X, error = algo.CG_M_tensor(A_tensor, B, funM, invM, iters, X_true=X_true)
-    bond_vector_f = np.vectorize(bound)
-    bound_vector = bond_vector_f(np.arange(iters+1), 2*10**4, error[0])
+    np.random.seed(1)
+    A_tall_hat_bad = generate_tall_A_hat(m, p, eigen1=1, eigen2=10**degree, k=k)
+    np.random.seed(1)
+    A_tall_hat_good = generate_tall_A_hat(m, p, eigen1=1, eigen2=1, k=k)
 
 
-    plt.subplot(2, 2, i+1)
-    plt.plot(error, c='b', label='eigvals of A^ for first slice are 1-2, second slice - 1*10^9-2*10^9')
-    plt.plot(bound_vector, 'b--', label='bound')
-    plt.xlabel('iterations')
-    plt.yscale("log")
+    # genrating vectors to plot
 
-    A_tensor, B, X_true = generate_tensor_eigen(m, p, 1, 1, funM, invM)
-    X, error = algo.CG_M_tensor(A_tensor, B, funM, invM, iters, X_true=X_true)
-    bound_vector = bond_vector_f(np.arange(iters+1), 2, error[0])
-    plt.plot(error, c='y', label='all eigenvalues of A^are from 1 to 2')
-    plt.plot(bound_vector, 'y--', label='bound')
-    plt.xlabel('iterations')
-    plt.yscale("log")
-    plt.title(f'random state of M = {M_random}')
-    plt.ylabel('error')
-    plt.legend()
-plt.suptitle('M prod conjugate gradient')
-plt.tight_layout()
-plt.savefig(path_to_save+'eigenvalues_experiment_CG')
-plt.show()
+    for plot_what in plot_what_options:
+        globals()[f'dict_of_lines_{plot_what}'] = {}
+    dict_of_cond = {}
 
-link = 'https://www.dropbox.com/scl/fo/vwn07zx7omd0zvqw0laxs/h?dl=0&rlkey=oyllju7bignxhr1liqdqh8b23'
+
+
+    for i in range(4):
+        start_time = time.time()
+        M_random = M_list[i]
+        dict_of_cond[i] = {}
+        for plot_what in plot_what_options:
+            globals()[f'dict_of_lines_{plot_what}'][i] = {}
+        if M_random == 'DCT':
+            funM, invM = generate_dct(2)
+        else:
+            funM, invM = generate_haar(2, random_state=M_random)
+        # A_tensor_bad = invM(A_tall_hat_bad)
+        # A_tensor_good = invM(A_tall_hat_good)
+
+        A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', funM, invM, X_true, B)
+        dict_of_cond[i]['orig bad'] = calculate_cond(A_tensor, funM)
+        X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
+        for plot_what in plot_what_options:
+            fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what, 'orig bad')
+
+        A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', funM, invM, X_true, B)
+        dict_of_cond[i]['orig good'] = calculate_cond(A_tensor, funM)
+        X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
+        for plot_what in plot_what_options:
+            fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what, 'orig good')
+        #preconditioning
+        s = p*6
+
+        A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', funM, invM, X_true, B)
+        P, R = algo.blendenpick(A_tensor, funM, invM, s=s)
+        A_tensor_precond = m_prod(A_tensor, R, funM, invM)
+        dict_of_cond[i]['prec bad'] = calculate_cond(A_tensor_precond, funM)
+        X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
+        for plot_what in plot_what_options:
+            fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what,
+                            'prec bad')
+
+        A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', funM, invM, X_true, B)
+        P, R = algo.blendenpick(A_tensor, funM, invM, s=s)
+        A_tensor_precond = m_prod(A_tensor, R, funM, invM)
+        dict_of_cond[i]['prec good'] = calculate_cond(A_tensor_precond, funM)
+        X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
+        for plot_what in plot_what_options:
+            fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what,
+                            'prec good')
+        print(time.time()-start_time)
+
+    for plot_what in plot_what_options:
+        helper_plot.plot_4M_2A_precond(M_list, globals()[f'dict_of_lines_{plot_what}'], plot_what, degree, m, p, s, dict_of_cond)
+        if X_true is None:
+            name = f'eigenvalues_experiment_LSQR_blendenpick_{m}_{p}_s{s}_k{k}_{plot_what.replace(" ", "_")}_B'
+        else:
+            name = f'eigenvalues_experiment_LSQR_blendenpick_{m}_{p}_s{s}_k{k}_{plot_what.replace(" ", "_")}_X_true'
+        plt.savefig(path_to_save + name)
+        plt.close()
+
+
+
+
+

@@ -1,24 +1,24 @@
 import numpy as np
 from mprod import  m_prod
-
+from scipy.fft import dct, idct, rfft, irfft
 
 def normalize(X, funM, invM, tol=10**-10):
-    V = funM(X)
+    V_hat = funM(X)
     m, p, n = X.shape #p==1
     a_all = np.ones(n)
     for i in range(n):
-        a = np.linalg.norm(V[:, :, i].squeeze(), None)
+        a = np.linalg.norm(V_hat[:, :, i].squeeze(), None)
         # print(a)
         a_all[i] = a
-        if a>tol:
-            V[:, :, i] = V[:, :, i]/a
+        if a > tol:
+            V_hat[:, :, i] = V_hat[:, :, i]/a
         else:
             print(a)
-            V[:,:,i] = np.random.randn(m, 1)
-            a = np.linalg.norm(V[:, :, i].squeeze(), None)
-            V[:, :, i] = V[:, :, i]/a
+            V_hat[:, :, i] = np.random.randn(m, 1)
+            a = np.linalg.norm(V_hat[:, :, i].squeeze(), None)
+            V_hat[:, :, i] = V_hat[:, :, i]/a
             a_all[i] = 0
-    V = invM(V)
+    V = invM(V_hat)
     a_all = invM(a_all.reshape((1, 1, -1)))
     return V, a_all
 
@@ -66,7 +66,7 @@ def CG_M_tensor(A_tensor, B, funM, invM, iters, tol=10**-10, X_true=None):
         alpha_num = m_prod(R.transpose((1,0,2)), R, funM, invM)
         alpha_den = m_prod_three(D.transpose((1,0,2)),A_tensor, D, funM, invM)
 
-        alpha = m_prod(alpha_num,inverse_of_tube(alpha_den, funM, invM),funM, invM)
+        alpha = m_prod(alpha_num, inverse_of_tube(alpha_den, funM, invM), funM, invM)
         X = X+m_prod(D, alpha, funM, invM)
         R_next = R-m_prod_three(A_tensor, D, alpha, funM, invM)
         beta_num = m_prod(R_next.transpose((1,0,2)), R_next, funM, invM)
@@ -132,3 +132,230 @@ def LSQR_mprod(A, C, funM, invM, itermax=25, tol=10 ** -5, X_true=None):
             error_each_step.append(nu_tensor_norm(E, A_tensor, funM, invM))
 
     return X, error_each_step
+
+
+def LSQR_mprod_tuples(A, C, funM, invM, itermax=25, tol=10 ** -5, X_true=None):
+    ### A - m*p*n, C - m*1*n ###
+    # initialization
+    def m_prod_fun(X, Y, funM=funM, invM=invM):
+        return m_prod(X, Y, funM, invM)
+    def m_prod_three_fun(X, Y, Z, funM=funM, invM=invM):
+        return m_prod_three(X, Y, Z, funM, invM)
+    A_tensor = m_prod_fun(np.transpose(A, (1, 0, 2)), A)
+    list_of_X = []
+    X = np.zeros((A.shape[1], C.shape[1], C.shape[2]))  # X - l*s*p
+    list_of_X.append(X)
+    U, beta = normalize(C, funM, invM)
+
+    V_wave = m_prod_fun(np.transpose(A, (1, 0, 2)), U)
+    V, alpha = normalize(V_wave, funM, invM) # V - l*s*p
+
+    W = V.copy()
+    ro_ = alpha.copy()
+    fi_ = beta.copy()
+
+    if X_true is not None:
+
+        E0 = X - X_true
+        error_each_step = [nu_tensor_norm(E0, A_tensor, funM, invM)]
+    for i in range(itermax):
+        # bidiagonalization
+        U_wave = m_prod_fun(A, V) - m_prod_fun(U, alpha)
+        U, beta = normalize(U_wave, funM, invM)
+
+        V_wave = m_prod_fun(np.transpose(A, (1, 0, 2)), U) - m_prod_fun(V, beta)
+        V, alpha = normalize(V_wave, funM, invM) # V - l*s*p
+
+        # orthogonal transformation
+        ro = invM(np.sqrt(funM(ro_) ** 2 + funM(beta) ** 2))
+        # ro = np.sqrt(ro_ ** 2 + beta ** 2)
+        ro_inv = inverse_of_tube(ro, funM, invM)
+        c = m_prod_fun(ro_inv, ro_)
+        s = m_prod_fun(ro_inv, beta)
+
+        theta = m_prod_fun(s, alpha)
+        ro_ = m_prod_fun(c, alpha)
+        fi = m_prod_fun(c, fi_)
+        fi_ = -m_prod_fun(s, fi_)
+        X = X + m_prod_three_fun(W, ro_inv, fi)
+        list_of_X.append(X)
+        W = V - m_prod_three_fun(W, ro_inv, theta)
+
+        # if abs(fi_) < tol:
+        #     break
+        if X_true is not None:
+            E = X - X_true
+            error_each_step.append(nu_tensor_norm(E, A_tensor, funM, invM))
+
+    if X_true is not None:
+        return X, error_each_step, list_of_X
+    else:
+        return X, None, list_of_X
+
+
+
+
+def LSQR_mprod_tuples_precond(A, C, R, funM, invM, itermax=25, tol=10 ** -5, X_true=None):
+    ### A - m*p*n, C - m*1*n ###
+    # initialization
+    def m_prod_fun(X, Y, funM=funM, invM=invM):
+        return m_prod(X, Y, funM, invM)
+    def m_prod_three_fun(X, Y, Z, funM=funM, invM=invM):
+        return m_prod_three(X, Y, Z, funM, invM)
+    A_tensor = m_prod_fun(A.transpose(1, 0, 2), A)
+
+    Y = np.zeros((A.shape[1], C.shape[1], C.shape[2]))  # X - l*s*p
+    list_of_X = []
+    X = m_prod_fun(R, Y)
+    list_of_X.append(X)
+    U, beta = normalize(C, funM, invM)
+
+    V_wave_p = m_prod_three_fun(R.transpose(1, 0, 2), A.transpose(1, 0, 2), U)
+    V, alpha = normalize(V_wave_p, funM, invM) # V - l*s*p
+
+    W = V.copy()
+    ro_ = alpha.copy()
+    fi_ = beta.copy()
+
+    if X_true is not None:
+        list_of_X.append(X)
+        E0 = X - X_true
+        error_each_step = [nu_tensor_norm(E0, A_tensor, funM, invM)]
+    for i in range(itermax):
+        # bidiagonalization
+
+        U_wave = m_prod_three_fun(A, R, V) - m_prod_fun(U, alpha)
+        U, beta = normalize(U_wave, funM, invM)
+
+        V_wave = m_prod_three_fun(R.transpose(1,0,2), A.transpose(1,0,2), U) - m_prod_fun(V, beta)
+        V, alpha = normalize(V_wave, funM, invM) # V - l*s*p
+
+        # orthogonal transformation
+        ro = invM(np.sqrt(funM(ro_) ** 2 + funM(beta) ** 2))
+        # ro = np.sqrt(ro_ ** 2 + beta ** 2)
+        ro_inv = inverse_of_tube(ro, funM, invM)
+        c = m_prod_fun(ro_inv, ro_)
+        s = m_prod_fun(ro_inv, beta)
+
+        theta = m_prod_fun(s, alpha)
+        ro_ = m_prod_fun(c, alpha)
+        fi = m_prod_fun(c, fi_)
+        fi_ = -m_prod_fun(s, fi_)
+        Y = Y + m_prod_three_fun(W, ro_inv, fi)
+        X = m_prod_fun(R, Y)
+        list_of_X.append(X)
+        W = V - m_prod_three_fun(W, ro_inv, theta)
+
+        # if abs(fi_) < tol:
+        #     break
+        if X_true is not None:
+            E = X - X_true
+            error_each_step.append(nu_tensor_norm(E, A_tensor, funM, invM))
+    if X_true is not None:
+        return X, error_each_step, list_of_X
+    else:
+        return X, None, list_of_X
+
+
+def inverse_tensor(tensor, funM, invM):
+    tensor_hat = funM(tensor)
+    m, p, n = tensor_hat.shape
+    face_inv = np.concatenate([np.linalg.inv(tensor_hat[:, :, i]).reshape(m, p, 1) for i in range(n)], 2)
+    tensor_inv = invM(face_inv)
+    return tensor_inv
+
+# from mprod import  generate_haar, generate_dct
+# funM, invM = generate_haar(4, random_state=0)
+# A = np.random.randn(5,5,4)
+# print(A.shape)
+# A_inv = inverse_tensor(A, funM, invM)
+# C = m_prod(A, A_inv, funM, invM)
+# D = funM(C)
+# print(D)
+# print('here')
+
+def tensor_QR(tensor, funM, invM):
+    m, p, n = tensor.shape
+    tensor_hat = funM(tensor)
+    tensor_Q = np.empty((m, p, 0))
+    tensor_R = np.empty((p, p, 0))
+    for i in range(n):
+        Q, R = np.linalg.qr(tensor_hat[:, :, i], mode='reduced')
+
+        tensor_Q = np.concatenate([tensor_Q, Q.reshape(m, p, 1)], 2)
+        tensor_R = np.concatenate([tensor_R, R.reshape(p, p, 1)], 2)
+
+    tensor_Q = invM(tensor_Q)
+    tensor_R = invM(tensor_R)
+    return tensor_Q, tensor_R
+
+
+
+# from mprod import  generate_haar, generate_dct
+# A = np.random.randn(5,3,4)
+# funM, invM = generate_haar(4, random_state=0)
+# tensor_Q, tensor_R = tensor_QR(A, funM, invM)
+# A_nw = m_prod(tensor_Q, tensor_R, funM, invM)
+# print('here')
+
+
+def blendenpick(A, funM, invM, s, transform_type='dct'):
+
+    m, p, n = A.shape
+    gama = s / p
+    m_tilde = int(np.ceil(m/100)*100)
+    M_hat  = np.concatenate((funM(A), np.zeros((m_tilde-m, p, n))), 0)
+
+    diag_els_D = np.random.choice([-1, 1], m_tilde)
+    D_hat_slice = np.zeros((m_tilde, m_tilde))
+    np.fill_diagonal(D_hat_slice, diag_els_D)
+    D_hat_tensor = np.concatenate([D_hat_slice.reshape(m_tilde, m_tilde, 1)]*n, 2)
+
+    DM_hat = np.einsum('mpi,pli->mli', D_hat_tensor, M_hat) #the same for each slice
+    M_hat = dct(DM_hat, type=2, n=m_tilde, axis=0, norm='ortho') # the same transformation for each slice
+
+    diag_els_S = np.random.choice([1, 0], m_tilde, [gama*n/m_tilde, 1-gama*n/m_tilde])
+    S_hat_slice = np.zeros((m_tilde, m_tilde))
+    np.fill_diagonal(S_hat_slice, diag_els_S)
+    S_hat_tensor = np.concatenate([S_hat_slice.reshape(m_tilde, m_tilde, 1)]*n, 2)
+
+    sampled_hat = np.einsum('mpi,pli->mli', S_hat_tensor, M_hat)  # the same for each slice
+    sampled_tensor = invM(sampled_hat)
+    tensor_Q, tensor_R = tensor_QR(sampled_tensor, funM, invM)
+    tensor_precond = inverse_tensor(tensor_R, funM, invM)
+    return tensor_R, tensor_precond
+
+
+
+def sampling_QR(tensor, funM, invM, s):
+    m, p, n = tensor.shape
+    sampling_tensor = np.random.randn(s, m, n)
+    sampled_tensor = m_prod(sampling_tensor, tensor, funM, invM)
+    # sampled_tensor = tensor.copy()
+    tensor_Q, tensor_R = tensor_QR(sampled_tensor, funM, invM)
+    tensor_precond = inverse_tensor(tensor_R, funM, invM)
+    return tensor_R, tensor_precond
+
+
+# from mprod import  generate_haar, generate_dct
+# A = np.random.randn(100, 3, 4)
+# funM, invM = generate_haar(4, random_state=0)
+# A_hat = funM(A)
+# C = np.einsum('mpi,pli->mli', A_hat.transpose(1, 0, 2), A_hat)
+# all_eigen = np.empty((0))
+# for i in range(4):
+#     eig_i = np.linalg.eigvals(C[:, :, i])
+#     all_eigen = np.concatenate([all_eigen, eig_i], 0)
+# print(all_eigen)
+# print(all_eigen.max()/all_eigen.min())
+# R, tensor_precond = sampling_QR(A, funM, invM, 20)
+#
+# A_new = m_prod(A, tensor_precond, funM, invM)
+# A_hat_new = funM(A_new)
+# C_new = np.einsum('mpi,pli->mli', A_hat_new.transpose(1, 0, 2), A_hat_new)
+# all_eigen = np.empty((0))
+# for i in range(4):
+#     eig_i = np.linalg.eigvals(C_new[:, :, i])
+#     all_eigen = np.concatenate([all_eigen, eig_i], 0)
+# print(all_eigen)
+# print(all_eigen.max()/all_eigen.min())
