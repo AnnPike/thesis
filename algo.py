@@ -187,7 +187,10 @@ def LSQR_mprod_tuples(A, C, funM, invM, itermax=25, tol=10 ** -5, X_true=None):
             E = X - X_true
             error_each_step.append(nu_tensor_norm(E, A_tensor, funM, invM))
 
-    return X, error_each_step, list_of_X
+    if X_true is not None:
+        return X, error_each_step, list_of_X
+    else:
+        return X, None, list_of_X
 
 
 
@@ -248,8 +251,10 @@ def LSQR_mprod_tuples_precond(A, C, R, funM, invM, itermax=25, tol=10 ** -5, X_t
         if X_true is not None:
             E = X - X_true
             error_each_step.append(nu_tensor_norm(E, A_tensor, funM, invM))
-
-    return X, error_each_step, list_of_X
+    if X_true is not None:
+        return X, error_each_step, list_of_X
+    else:
+        return X, None, list_of_X
 
 
 def inverse_tensor(tensor, funM, invM):

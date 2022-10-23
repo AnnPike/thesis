@@ -5,7 +5,7 @@ import algo
 from scipy.stats import ortho_group
 import helper_plot
 import matplotlib.pyplot as plt
-
+import time
 
 def bound(i, k, E0):
     return 2*E0*((np.sqrt(k)-1)/(np.sqrt(k)+1))**i
@@ -40,14 +40,17 @@ def generate_tall_A_hat(m, p, eigen1, eigen2, k):
     return A_hat
 
 
-def generate_tall_A(A_hat, transform, funM, invM, X_true):
+def generate_tall_A(A_hat, transform, funM, invM, X_true, B):
 
     if transform == 'DCT':
         fun_dct, inv_dct = generate_dct(2)
         A_tall_tensor = inv_dct(A_hat)
     else:
         A_tall_tensor = invM(A_hat)
-    B = m_prod(A_tall_tensor, X_true, funM, invM)
+    if X_true is None:
+        return A_tall_tensor, B
+    else:
+        B = m_prod(A_tall_tensor, X_true, funM, invM)
     return A_tall_tensor, B
 
 
@@ -149,85 +152,113 @@ def calculate_cond(A, funM):
     k2 = a2_max/a2_min
     return int(max(k1, k2))
 
+def fill_dict_lines(dict_of_lines, A_tensor, B, funM, invM, error, list_of_X, plot_what, matrix_type):
+    if plot_what == 'error':
+        dict_of_lines[i][matrix_type] = error
+    if plot_what == 'normalized error':
+        dict_of_lines[i][matrix_type] = error / error[0]
+    if plot_what == 'residual':
+        list_of_res = res_norm_steps(A_tensor, list_of_X, B, funM, invM)
+        dict_of_lines[i][matrix_type] = list_of_res
+    if plot_what == 'normalized residual':
+        list_of_res = norm_res_norm_steps(A_tensor, list_of_X, B, funM, invM)
+        dict_of_lines[i][matrix_type] = list_of_res
+    return dict_of_lines
+
 
 path_to_save = '/home/anna/uni/thesis/numerical_results/'
-m, p = 5*1000, 250
-k = 10**6
+np.random.seed(1)
 
 iters = 40
 M_list = ['DCT', 21, 127, 333]
-plot_what_options = ['residual', 'error', 'normalized residual', 'normalized error']
-plot_what = 'normalized error'
 
+# define parameters
+m, p = 5000, 100
+k = 100
 degree = 6
-X_true = np.random.randn(p, 1, 2)
-np.random.seed(1)
-A_tall_hat_bad = generate_tall_A_hat(m, p, eigen1=1, eigen2=10**degree, k=k)
-np.random.seed(1)
-A_tall_hat_good = generate_tall_A_hat(m, p, eigen1=1, eigen2=1, k=k)
 
-# genrating vectors to plot
-plot_over_iter_orig_bad = []
-plot_over_iter_orig_good = []
-plot_over_iter_precond_bad = []
-plot_over_iter_precond_good = []
-dict_of_cond = {}
+random_X = np.random.randn(p, 1, 2)
 
-for i in range(4):
-    M_random = M_list[i]
-    dict_of_cond[i] = {}
-    if M_random == 'DCT':
-        funM, invM = generate_dct(2)
+
+for X_true in [None, random_X]:
+    if X_true is None:
+        B = np.random.randn(m, 1, 2)
+        plot_what_options = ['normalized residual', 'residual']
     else:
-        funM, invM = generate_haar(2, random_state=M_random)
-
-    A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', funM, invM, X_true)
-    dict_of_cond[i]['orig bad'] = calculate_cond(A_tensor, funM)
-    X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
-    if plot_what=='error':
-        plot_over_iter_orig_bad.append(error)
-    if plot_what == 'normalized error':
-        plot_over_iter_orig_bad.append(error/error[0])
+        B = None
+        plot_what_options = ['residual', 'error', 'normalized residual', 'normalized error']
 
 
-    A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', funM, invM, X_true)
-    dict_of_cond[i]['orig good'] = calculate_cond(A_tensor, funM)
-    X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
-    if plot_what=='error':
-        plot_over_iter_orig_good.append(error)
-    if plot_what == 'normalized error':
-        plot_over_iter_orig_good.append(error/error[0])
-    #preconditioning
-    s = p*6
-
-    A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', funM, invM, X_true)
-    P, R = algo.sampling_QR(A_tensor, funM, invM, s=s)
-    A_tensor_precond = m_prod(A_tensor, R, funM, invM)
-    dict_of_cond[i]['prec bad'] = calculate_cond(A_tensor_precond, funM)
+    np.random.seed(1)
+    A_tall_hat_bad = generate_tall_A_hat(m, p, eigen1=1, eigen2=10**degree, k=k)
+    np.random.seed(1)
+    A_tall_hat_good = generate_tall_A_hat(m, p, eigen1=1, eigen2=1, k=k)
 
 
-    X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
-    if plot_what=='error':
-        plot_over_iter_precond_bad.append(error)
-    if plot_what == 'normalized error':
-        plot_over_iter_precond_bad.append(error/error[0])
-    A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', funM, invM, X_true)
-    P, R = algo.sampling_QR(A_tensor, funM, invM, s=s)
-    A_tensor_precond = m_prod(A_tensor, R, funM, invM)
-    dict_of_cond[i]['prec good'] = calculate_cond(A_tensor_precond, funM)
+    # genrating vectors to plot
 
-    X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
-    if plot_what=='error':
-        plot_over_iter_precond_good.append(error)
-    if plot_what == 'normalized error':
-        plot_over_iter_precond_good.append(error/error[0])
+    for plot_what in plot_what_options:
+        globals()[f'dict_of_lines_{plot_what}'] = {}
+    dict_of_cond = {}
 
-helper_plot.plot_4M_2A_precond(M_list, plot_over_iter_orig_bad, plot_over_iter_orig_good,
-                               plot_over_iter_precond_bad, plot_over_iter_precond_good,
-                               plot_what, degree, m, p, s, dict_of_cond)
 
-plt.savefig(path_to_save + f'eigenvalues_experiment_LSQR_sample_{s}_k{k}_{plot_what.replace(" ", "_")}')
-plt.show()
+
+    for i in range(4):
+        start_time = time.time()
+        M_random = M_list[i]
+        dict_of_cond[i] = {}
+        for plot_what in plot_what_options:
+            globals()[f'dict_of_lines_{plot_what}'][i] = {}
+        if M_random == 'DCT':
+            funM, invM = generate_dct(2)
+        else:
+            funM, invM = generate_haar(2, random_state=M_random)
+        # A_tensor_bad = invM(A_tall_hat_bad)
+        # A_tensor_good = invM(A_tall_hat_good)
+
+        A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', funM, invM, X_true, B)
+        dict_of_cond[i]['orig bad'] = calculate_cond(A_tensor, funM)
+        X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
+        for plot_what in plot_what_options:
+            fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what, 'orig bad')
+
+        A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', funM, invM, X_true, B)
+        dict_of_cond[i]['orig good'] = calculate_cond(A_tensor, funM)
+        X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
+        for plot_what in plot_what_options:
+            fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what, 'orig good')
+        #preconditioning
+        s = p*6
+
+        A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', funM, invM, X_true, B)
+        P, R = algo.blendenpick(A_tensor, funM, invM, s=s)
+        A_tensor_precond = m_prod(A_tensor, R, funM, invM)
+        dict_of_cond[i]['prec bad'] = calculate_cond(A_tensor_precond, funM)
+        X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
+        for plot_what in plot_what_options:
+            fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what,
+                            'prec bad')
+
+        A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', funM, invM, X_true, B)
+        P, R = algo.blendenpick(A_tensor, funM, invM, s=s)
+        A_tensor_precond = m_prod(A_tensor, R, funM, invM)
+        dict_of_cond[i]['prec good'] = calculate_cond(A_tensor_precond, funM)
+        X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
+        for plot_what in plot_what_options:
+            fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what,
+                            'prec good')
+        print(time.time()-start_time)
+
+    for plot_what in plot_what_options:
+        helper_plot.plot_4M_2A_precond(M_list, globals()[f'dict_of_lines_{plot_what}'], plot_what, degree, m, p, s, dict_of_cond)
+        if X_true is None:
+            name = f'eigenvalues_experiment_LSQR_blendenpick_{m}_{p}_s{s}_k{k}_{plot_what.replace(" ", "_")}_B'
+        else:
+            name = f'eigenvalues_experiment_LSQR_blendenpick_{m}_{p}_s{s}_k{k}_{plot_what.replace(" ", "_")}_X_true'
+        plt.savefig(path_to_save + name)
+        plt.close()
+
+
 
 
 
