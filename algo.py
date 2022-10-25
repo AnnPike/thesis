@@ -307,19 +307,13 @@ def blendenpick(A, funM, invM, s, transform_type='dct'):
     M_hat  = np.concatenate((funM(A), np.zeros((m_tilde-m, p, n))), 0)
 
     diag_els_D = np.random.choice([-1, 1], m_tilde)
-    D_hat_slice = np.zeros((m_tilde, m_tilde))
-    np.fill_diagonal(D_hat_slice, diag_els_D)
-    D_hat_tensor = np.concatenate([D_hat_slice.reshape(m_tilde, m_tilde, 1)]*n, 2)
+    DM_hat = M_hat*diag_els_D.reshape(m_tilde, 1, 1)#the same for each slice
 
-    DM_hat = np.einsum('mpi,pli->mli', D_hat_tensor, M_hat) #the same for each slice
-    M_hat = dct(DM_hat, type=2, n=m_tilde, axis=0, norm='ortho') # the same transformation for each slice
+    M_hat = dct(DM_hat, type=2, n=m_tilde, axis=0, norm='ortho', workers=4) # the same transformation for each slice
 
     diag_els_S = np.random.choice([1, 0], m_tilde, [gama*n/m_tilde, 1-gama*n/m_tilde])
-    S_hat_slice = np.zeros((m_tilde, m_tilde))
-    np.fill_diagonal(S_hat_slice, diag_els_S)
-    S_hat_tensor = np.concatenate([S_hat_slice.reshape(m_tilde, m_tilde, 1)]*n, 2)
 
-    sampled_hat = np.einsum('mpi,pli->mli', S_hat_tensor, M_hat)  # the same for each slice
+    sampled_hat = M_hat*diag_els_S.reshape(m_tilde, 1, 1) # the same for each slice
     sampled_tensor = invM(sampled_hat)
     tensor_Q, tensor_R = tensor_QR(sampled_tensor, funM, invM)
     tensor_precond = inverse_tensor(tensor_R, funM, invM)

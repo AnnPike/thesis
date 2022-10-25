@@ -173,13 +173,13 @@ iters = 40
 M_list = ['DCT', 21, 127, 333]
 
 # define parameters
-m, p = 5000, 100
+m, p = 500, 50
 k = 100
 degree = 6
 
 random_X = np.random.randn(p, 1, 2)
 
-
+start_time = time.time()
 for X_true in [None, random_X]:
     if X_true is None:
         B = np.random.randn(m, 1, 2)
@@ -204,7 +204,7 @@ for X_true in [None, random_X]:
 
 
     for i in range(4):
-        start_time = time.time()
+
         M_random = M_list[i]
         dict_of_cond[i] = {}
         for plot_what in plot_what_options:
@@ -247,7 +247,7 @@ for X_true in [None, random_X]:
         for plot_what in plot_what_options:
             fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what,
                             'prec good')
-        print(time.time()-start_time)
+
 
     for plot_what in plot_what_options:
         helper_plot.plot_4M_2A_precond(M_list, globals()[f'dict_of_lines_{plot_what}'], plot_what, degree, m, p, s, dict_of_cond)
@@ -258,7 +258,7 @@ for X_true in [None, random_X]:
         plt.savefig(path_to_save + name)
         plt.close()
 
-
+print(time.time()-start_time)
 
 
 
