@@ -2,6 +2,7 @@ import numpy as np
 from mprod import  m_prod
 from scipy.fft import dct, idct, rfft, irfft
 
+
 def normalize(X, funM, invM, tol=10**-10):
     V_hat = funM(X)
     m, p, n = X.shape #p==1
@@ -274,13 +275,18 @@ def inverse_tensor(tensor, funM, invM):
 # print(D)
 # print('here')
 
-def tensor_QR(tensor, funM, invM):
+
+#this funtion can be written for paralel computation (https://www.quantstart.com/articles/QR-Decomposition-with-Python-and-NumPy/)
+def tensor_QR(tensor, funM, invM, input='not hat'):
     m, p, n = tensor.shape
-    tensor_hat = funM(tensor)
+    if input=='not hat':
+        tensor_hat = funM(tensor)
+    else:
+        tensor_hat = tensor
     tensor_Q = np.empty((m, p, 0))
     tensor_R = np.empty((p, p, 0))
     for i in range(n):
-        Q, R = np.linalg.qr(tensor_hat[:, :, i], mode='reduced')
+        Q, R = np.linalg.qr(tensor_hat[:, :, i], mode='reduced') #Householder Transformations in Python
 
         tensor_Q = np.concatenate([tensor_Q, Q.reshape(m, p, 1)], 2)
         tensor_R = np.concatenate([tensor_R, R.reshape(p, p, 1)], 2)
@@ -314,8 +320,7 @@ def blendenpick(A, funM, invM, s, transform_type='dct'):
     diag_els_S = np.random.choice([1, 0], m_tilde, [gama*n/m_tilde, 1-gama*n/m_tilde])
 
     sampled_hat = M_hat*diag_els_S.reshape(m_tilde, 1, 1) # the same for each slice
-    sampled_tensor = invM(sampled_hat)
-    tensor_Q, tensor_R = tensor_QR(sampled_tensor, funM, invM)
+    tensor_Q, tensor_R = tensor_QR(sampled_hat, funM, invM, input='hat')
     tensor_precond = inverse_tensor(tensor_R, funM, invM)
     return tensor_R, tensor_precond
 
@@ -324,9 +329,11 @@ def blendenpick(A, funM, invM, s, transform_type='dct'):
 def sampling_QR(tensor, funM, invM, s):
     m, p, n = tensor.shape
     sampling_tensor = np.random.randn(s, m, n)
-    sampled_tensor = m_prod(sampling_tensor, tensor, funM, invM)
-    # sampled_tensor = tensor.copy()
-    tensor_Q, tensor_R = tensor_QR(sampled_tensor, funM, invM)
+    tensor_hat = funM(tensor)
+
+    sampled_tensor_hat = np.einsum('mpi,pli->mli', sampling_tensor, tensor_hat)
+    tensor_Q, tensor_R = tensor_QR(sampled_tensor_hat, funM, invM, input='hat')
+
     tensor_precond = inverse_tensor(tensor_R, funM, invM)
     return tensor_R, tensor_precond
 
