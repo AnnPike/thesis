@@ -173,13 +173,13 @@ iters = 40
 M_list = ['DCT', 21, 127, 333]
 
 # define parameters
-m, p = 5000, 100
+m, p = 500, 50
 k = 100
 degree = 6
 
 random_X = np.random.randn(p, 1, 2)
 
-
+start_time = time.time()
 for X_true in [None, random_X]:
     if X_true is None:
         B = np.random.randn(m, 1, 2)
@@ -204,7 +204,7 @@ for X_true in [None, random_X]:
 
 
     for i in range(4):
-        start_time = time.time()
+
         M_random = M_list[i]
         dict_of_cond[i] = {}
         for plot_what in plot_what_options:
@@ -231,7 +231,7 @@ for X_true in [None, random_X]:
         s = p*6
 
         A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', funM, invM, X_true, B)
-        P, R = algo.blendenpick(A_tensor, funM, invM, s=s)
+        P, R = algo.sampling_QR(A_tensor, funM, invM, s=s)
         A_tensor_precond = m_prod(A_tensor, R, funM, invM)
         dict_of_cond[i]['prec bad'] = calculate_cond(A_tensor_precond, funM)
         X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
@@ -240,24 +240,24 @@ for X_true in [None, random_X]:
                             'prec bad')
 
         A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', funM, invM, X_true, B)
-        P, R = algo.blendenpick(A_tensor, funM, invM, s=s)
+        P, R = algo.sampling_QR(A_tensor, funM, invM, s=s)
         A_tensor_precond = m_prod(A_tensor, R, funM, invM)
         dict_of_cond[i]['prec good'] = calculate_cond(A_tensor_precond, funM)
         X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
         for plot_what in plot_what_options:
             fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what,
                             'prec good')
-        print(time.time()-start_time)
+
 
     for plot_what in plot_what_options:
         helper_plot.plot_4M_2A_precond(M_list, globals()[f'dict_of_lines_{plot_what}'], plot_what, degree, m, p, s, dict_of_cond)
         if X_true is None:
-            name = f'eigenvalues_experiment_LSQR_blendenpick_{m}_{p}_s{s}_k{k}_{plot_what.replace(" ", "_")}_B'
+            name = f'eigenvalues_experiment_LSQR_S_IID_{m}_{p}_s{s}_k{k}_{plot_what.replace(" ", "_")}_B'
         else:
-            name = f'eigenvalues_experiment_LSQR_blendenpick_{m}_{p}_s{s}_k{k}_{plot_what.replace(" ", "_")}_X_true'
+            name = f'eigenvalues_experiment_LSQR_S_IID_{m}_{p}_s{s}_k{k}_{plot_what.replace(" ", "_")}_X_true'
         plt.savefig(path_to_save + name)
         plt.close()
-
+print(time.time()-start_time)
 
 
 
