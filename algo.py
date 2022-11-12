@@ -205,7 +205,7 @@ def LSQR_mprod_tuples_precond(A, C, R, funM, invM, itermax=25, tol=10 ** -5, X_t
         return m_prod_three(X, Y, Z, funM, invM)
     A_tensor = m_prod_fun(A.transpose(1, 0, 2), A)
 
-    Y = np.zeros((A.shape[1], C.shape[1], C.shape[2]))  # X - l*s*p
+    Y = np.zeros((A.shape[1], C.shape[1], C.shape[2]))  # p*1*n
     list_of_X = []
     X = m_prod_fun(R, Y)
     list_of_X.append(X)
