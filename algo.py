@@ -2,6 +2,7 @@ import numpy as np
 from mprod import  m_prod
 from scipy.fft import dct, idct, rfft, irfft
 
+
 def normalize(X, funM, invM, tol=10**-10):
     V_hat = funM(X)
     m, p, n = X.shape #p==1
@@ -204,7 +205,7 @@ def LSQR_mprod_tuples_precond(A, C, R, funM, invM, itermax=25, tol=10 ** -5, X_t
         return m_prod_three(X, Y, Z, funM, invM)
     A_tensor = m_prod_fun(A.transpose(1, 0, 2), A)
 
-    Y = np.zeros((A.shape[1], C.shape[1], C.shape[2]))  # X - l*s*p
+    Y = np.zeros((A.shape[1], C.shape[1], C.shape[2]))  # p*1*n
     list_of_X = []
     X = m_prod_fun(R, Y)
     list_of_X.append(X)
@@ -274,13 +275,18 @@ def inverse_tensor(tensor, funM, invM):
 # print(D)
 # print('here')
 
-def tensor_QR(tensor, funM, invM):
+
+#this funtion can be written for paralel computation (https://www.quantstart.com/articles/QR-Decomposition-with-Python-and-NumPy/)
+def tensor_QR(tensor, funM, invM, input='not hat'):
     m, p, n = tensor.shape
-    tensor_hat = funM(tensor)
+    if input=='not hat':
+        tensor_hat = funM(tensor)
+    else:
+        tensor_hat = tensor
     tensor_Q = np.empty((m, p, 0))
     tensor_R = np.empty((p, p, 0))
     for i in range(n):
-        Q, R = np.linalg.qr(tensor_hat[:, :, i], mode='reduced')
+        Q, R = np.linalg.qr(tensor_hat[:, :, i], mode='reduced') #Householder Transformations in Python
 
         tensor_Q = np.concatenate([tensor_Q, Q.reshape(m, p, 1)], 2)
         tensor_R = np.concatenate([tensor_R, R.reshape(p, p, 1)], 2)
@@ -307,21 +313,14 @@ def blendenpick(A, funM, invM, s, transform_type='dct'):
     M_hat  = np.concatenate((funM(A), np.zeros((m_tilde-m, p, n))), 0)
 
     diag_els_D = np.random.choice([-1, 1], m_tilde)
-    D_hat_slice = np.zeros((m_tilde, m_tilde))
-    np.fill_diagonal(D_hat_slice, diag_els_D)
-    D_hat_tensor = np.concatenate([D_hat_slice.reshape(m_tilde, m_tilde, 1)]*n, 2)
+    DM_hat = M_hat*diag_els_D.reshape(m_tilde, 1, 1)#the same for each slice
 
-    DM_hat = np.einsum('mpi,pli->mli', D_hat_tensor, M_hat) #the same for each slice
-    M_hat = dct(DM_hat, type=2, n=m_tilde, axis=0, norm='ortho') # the same transformation for each slice
+    M_hat = dct(DM_hat, type=2, n=m_tilde, axis=0, norm='ortho', workers=4) # the same transformation for each slice
 
     diag_els_S = np.random.choice([1, 0], m_tilde, [gama*n/m_tilde, 1-gama*n/m_tilde])
-    S_hat_slice = np.zeros((m_tilde, m_tilde))
-    np.fill_diagonal(S_hat_slice, diag_els_S)
-    S_hat_tensor = np.concatenate([S_hat_slice.reshape(m_tilde, m_tilde, 1)]*n, 2)
 
-    sampled_hat = np.einsum('mpi,pli->mli', S_hat_tensor, M_hat)  # the same for each slice
-    sampled_tensor = invM(sampled_hat)
-    tensor_Q, tensor_R = tensor_QR(sampled_tensor, funM, invM)
+    sampled_hat = M_hat*diag_els_S.reshape(m_tilde, 1, 1) # the same for each slice
+    tensor_Q, tensor_R = tensor_QR(sampled_hat, funM, invM, input='hat')
     tensor_precond = inverse_tensor(tensor_R, funM, invM)
     return tensor_R, tensor_precond
 
@@ -330,9 +329,11 @@ def blendenpick(A, funM, invM, s, transform_type='dct'):
 def sampling_QR(tensor, funM, invM, s):
     m, p, n = tensor.shape
     sampling_tensor = np.random.randn(s, m, n)
-    sampled_tensor = m_prod(sampling_tensor, tensor, funM, invM)
-    # sampled_tensor = tensor.copy()
-    tensor_Q, tensor_R = tensor_QR(sampled_tensor, funM, invM)
+    tensor_hat = funM(tensor)
+
+    sampled_tensor_hat = np.einsum('mpi,pli->mli', sampling_tensor, tensor_hat)
+    tensor_Q, tensor_R = tensor_QR(sampled_tensor_hat, funM, invM, input='hat')
+
     tensor_precond = inverse_tensor(tensor_R, funM, invM)
     return tensor_R, tensor_precond
 
