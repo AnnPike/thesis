@@ -152,21 +152,21 @@ def calculate_cond(A, funM):
     k2 = a2_max/a2_min
     return int(max(k1, k2))
 
-def fill_dict_lines(dict_of_lines, A_tensor, B, funM, invM, error, list_of_X, plot_what, matrix_type):
+def fill_dict_lines(dict_of_lines, A_tensor, B, funM, invM, error, list_of_X, plot_what, matrix_type, sigma):
     if plot_what == 'error':
-        dict_of_lines[i][matrix_type] = error
+        dict_of_lines[i][sigma][matrix_type] = error
     if plot_what == 'normalized error':
-        dict_of_lines[i][matrix_type] = error / error[0]
+        dict_of_lines[i][sigma][matrix_type] = error / error[0]
     if plot_what == 'residual':
         list_of_res = res_norm_steps(A_tensor, list_of_X, B, funM, invM)
-        dict_of_lines[i][matrix_type] = list_of_res
+        dict_of_lines[i][sigma][matrix_type] = list_of_res
     if plot_what == 'normalized residual':
         list_of_res = norm_res_norm_steps(A_tensor, list_of_X, B, funM, invM)
-        dict_of_lines[i][matrix_type] = list_of_res
+        dict_of_lines[i][sigma][matrix_type] = list_of_res
     return dict_of_lines
 
 
-path_to_save = '/home/anna/uni/thesis/numerical_results/'
+path_to_save = '/home/anna/uni/thesis/numerical_results/eigen_n2_numerical/'
 np.random.seed(1)
 
 iters = 40
@@ -194,7 +194,7 @@ for plot_what in plot_what_options:
     globals()[f'dict_of_lines_{plot_what}'] = {}
 dict_of_cond = {}
 
-
+sigma_list = [0.01, 0.1, 1]
 
 for i in range(4):
 
@@ -209,11 +209,14 @@ for i in range(4):
     # A_tensor_bad = invM(A_tall_hat_bad)
     # A_tensor_good = invM(A_tall_hat_good)
 
-    A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', funM, invM, X_true, B)
+    A_tensor, B_true = generate_tall_A(A_tall_hat_bad, 'original M', funM, invM, X_true, None)
     dict_of_cond[i]['orig bad'] = calculate_cond(A_tensor, funM)
-    X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
-    for plot_what in plot_what_options:
-        fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what, 'orig bad')
+    for sigma in sigma_list:
+        B = B_true + sigma * np.random.randn(m, 1, 2)
+        X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
+        for plot_what in plot_what_options:
+            globals()[f'dict_of_lines_{plot_what}'][i][sigma] = {}
+            fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what, 'orig bad', sigma)
 
     #preconditioning
     s = p*6
@@ -221,35 +224,38 @@ for i in range(4):
     P, R = algo.blendenpick(A_tensor, funM, invM, s=s)
     A_tensor_precond = m_prod(A_tensor, R, funM, invM)
     dict_of_cond[i]['prec bad'] = calculate_cond(A_tensor_precond, funM)
-    X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
-    for plot_what in plot_what_options:
-        fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what,
-                        'prec bad')
+    for sigma in sigma_list:
+        B = B_true + sigma * np.random.randn(m, 1, 2)
+        X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
+        for plot_what in plot_what_options:
+            fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what,
+                            'prec bad', sigma)
 
-    A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', funM, invM, X_true, B)
+    A_tensor, B_true = generate_tall_A(A_tall_hat_good, 'original M', funM, invM, X_true, B)
     dict_of_cond[i]['orig good'] = calculate_cond(A_tensor, funM)
-    X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
-    for plot_what in plot_what_options:
-        fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what, 'orig good')
+    for sigma in sigma_list:
+        B = B_true + sigma * np.random.randn(m, 1, 2)
+        X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
+        for plot_what in plot_what_options:
+            fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what, 'orig good', sigma)
 
 
     P, R = algo.blendenpick(A_tensor, funM, invM, s=s)
     A_tensor_precond = m_prod(A_tensor, R, funM, invM)
     dict_of_cond[i]['prec good'] = calculate_cond(A_tensor_precond, funM)
-    X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
-    for plot_what in plot_what_options:
-        fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what,
-                        'prec good')
+    for sigma in sigma_list:
+        B = B_true + sigma * np.random.randn(m, 1, 2)
+        X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
+        for plot_what in plot_what_options:
+            fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what,
+                            'prec good', sigma)
 
 
 for plot_what in plot_what_options:
     helper_plot.plot_4M_2A_precond(M_list, globals()[f'dict_of_lines_{plot_what}'], plot_what, degree, m, p, s, dict_of_cond)
-    if X_true is None:
-        name = f'eigenvalues_experiment_LSQR_blendenpick_{m}_{p}_s{s}_k{k}_{plot_what.replace(" ", "_")}_B'
-    else:
-        name = f'eigenvalues_experiment_LSQR_blendenpick_{m}_{p}_s{s}_k{k}_{plot_what.replace(" ", "_")}_X_true'
+    name = f'eigenvalues_experiment_LSQR_blendenpick_{m}_{p}_s{s}_k{k}_{plot_what.replace(" ", "_")}_X_true_B_noisy'
     plt.savefig(path_to_save + name)
-    plt.show()
+    plt.close()
 
 
 
