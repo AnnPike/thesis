@@ -166,7 +166,7 @@ def fill_dict_lines(dict_of_lines, A_tensor, B, funM, invM, error, list_of_X, pl
     return dict_of_lines
 
 
-path_to_save = '/home/anna/uni/thesis/numerical_results/'
+path_to_save = '/home/anna/uni/thesis/numerical_results/eigen_n2_numerical/'
 np.random.seed(1)
 
 iters = 40
@@ -256,7 +256,7 @@ for X_true in [None, random_X]:
         else:
             name = f'eigenvalues_experiment_LSQR_blendenpick_{m}_{p}_s{s}_k{k}_{plot_what.replace(" ", "_")}_X_true'
         plt.savefig(path_to_save + name)
-        plt.show()
+        plt.close()
 
 print(time.time()-start_time)
 
