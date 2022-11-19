@@ -10,9 +10,14 @@ import time
 def bound(i, k, E0):
     return 2*E0*((np.sqrt(k)-1)/(np.sqrt(k)+1))**i
 
-
 bond_vector_f = np.vectorize(bound)
 
+def energy_norm(E, A_sym, funM):
+    E_hat = funM(E)
+    A_hat = funM(A_sym)
+    nu_hat_sq = np.einsum('mpi,pli->mli', np.einsum('mpi,pli->mli', E_hat.transpose(1, 0, 2), A_hat), E_hat)
+    # print((nu_hat_sq<0).sum())
+    return nu_hat_sq.sum()
 
 def nu_tensor_norm(E, A_tensor, funM, invM):
     return algo.tensor_frob_norm(algo.m_prod_three(E.transpose(1, 0, 2), A_tensor, E, funM, invM))
@@ -146,11 +151,24 @@ def get_eigen_tall(A, funM):
     return a1_min, a1_max, a2_min, a2_max
 
 
+def get_eigen(A_hat):
+    lambda1 = np.linalg.eigvals(A_hat[:, :, 0])
+    a1_min = np.round(lambda1.min(), 5)
+    a1_max = np.round(lambda1.max(), 5)
+    lambda2 = np.linalg.eigvals(A_hat[:, :, 1])
+    a2_min = np.round(lambda2.min(), 5)
+    a2_max = np.round(lambda2.max(), 5)
+
+    return a1_min, a1_max, a2_min, a2_max
+
+
 def calculate_cond(A, funM):
-    a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A, funM)
+    A_hat = funM(A)
+    a1_min, a1_max, a2_min, a2_max = get_eigen(A_hat)
     k1 = a1_max/a1_min
     k2 = a2_max/a2_min
     return int(max(k1, k2))
+
 
 def fill_dict_lines(dict_of_lines, A_tensor, B, funM, invM, error, list_of_X, plot_what, matrix_type, sigma):
     if plot_what == 'error':
@@ -194,7 +212,7 @@ for plot_what in plot_what_options:
     globals()[f'dict_of_lines_{plot_what}'] = {}
 dict_of_cond = {}
 
-sigma_list = [0.01, 0.1, 1]
+sigma_list = [0.01, 1]
 
 for i in range(4):
 
@@ -210,10 +228,13 @@ for i in range(4):
     # A_tensor_good = invM(A_tall_hat_good)
 
     A_tensor, B_true = generate_tall_A(A_tall_hat_bad, 'original M', funM, invM, X_true, None)
-    dict_of_cond[i]['orig bad'] = calculate_cond(A_tensor, funM)
+    A_sym = m_prod(A_tensor.transpose(1, 0, 2), A_tensor, funM, invM)
+    dict_of_cond[i]['orig bad'] = calculate_cond(A_sym, funM)
     for sigma in sigma_list:
         B = B_true + sigma * np.random.randn(m, 1, 2)
-        X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
+        list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters)
+        list_of_E = [X - X_true for X in list_of_X]
+        error = np.array([energy_norm(E, A_sym, funM) for E in list_of_E])
         for plot_what in plot_what_options:
             globals()[f'dict_of_lines_{plot_what}'][i][sigma] = {}
             fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what, 'orig bad', sigma)
@@ -223,29 +244,38 @@ for i in range(4):
 
     P, R = algo.blendenpick(A_tensor, funM, invM, s=s)
     A_tensor_precond = m_prod(A_tensor, R, funM, invM)
-    dict_of_cond[i]['prec bad'] = calculate_cond(A_tensor_precond, funM)
+    Ap_sym = m_prod(A_tensor_precond.transpose(1, 0, 2), A_tensor_precond, funM, invM)
+    dict_of_cond[i]['prec bad'] = calculate_cond(Ap_sym, funM)
     for sigma in sigma_list:
         B = B_true + sigma * np.random.randn(m, 1, 2)
-        X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
+        list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters)
+        list_of_E = [X - X_true for X in list_of_X]
+        error = np.array([energy_norm(E, A_sym, funM) for E in list_of_E])
         for plot_what in plot_what_options:
             fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what,
                             'prec bad', sigma)
 
     A_tensor, B_true = generate_tall_A(A_tall_hat_good, 'original M', funM, invM, X_true, B)
-    dict_of_cond[i]['orig good'] = calculate_cond(A_tensor, funM)
+    A_sym = m_prod(A_tensor.transpose(1, 0, 2), A_tensor, funM, invM)
+    dict_of_cond[i]['orig good'] = calculate_cond(A_sym, funM)
     for sigma in sigma_list:
         B = B_true + sigma * np.random.randn(m, 1, 2)
-        X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
+        list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters)
+        list_of_E = [X - X_true for X in list_of_X]
+        error = np.array([energy_norm(E, A_sym, funM) for E in list_of_E])
         for plot_what in plot_what_options:
             fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what, 'orig good', sigma)
 
 
     P, R = algo.blendenpick(A_tensor, funM, invM, s=s)
     A_tensor_precond = m_prod(A_tensor, R, funM, invM)
-    dict_of_cond[i]['prec good'] = calculate_cond(A_tensor_precond, funM)
+    Ap_sym = m_prod(A_tensor_precond.transpose(1, 0, 2), A_tensor_precond, funM, invM)
+    dict_of_cond[i]['prec good'] = calculate_cond(Ap_sym, funM)
     for sigma in sigma_list:
         B = B_true + sigma * np.random.randn(m, 1, 2)
-        X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
+        list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters)
+        list_of_E = [X - X_true for X in list_of_X]
+        error = np.array([energy_norm(E, A_sym, funM) for E in list_of_E])
         for plot_what in plot_what_options:
             fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what,
                             'prec good', sigma)
@@ -255,7 +285,7 @@ for plot_what in plot_what_options:
     helper_plot.plot_4M_2A_precond(M_list, globals()[f'dict_of_lines_{plot_what}'], plot_what, degree, m, p, s, dict_of_cond)
     name = f'eigenvalues_experiment_LSQR_blendenpick_{m}_{p}_s{s}_k{k}_{plot_what.replace(" ", "_")}_X_true_B_noisy'
     plt.savefig(path_to_save + name)
-    plt.close()
+    plt.show()
 
 
 

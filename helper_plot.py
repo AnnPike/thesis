@@ -24,13 +24,13 @@ def plot_4M_2A_precond(M_list, dict_of_lines,
             l3 = plt.plot(dict_of_lines[i][sigma]['prec good'], c='orange', label=f"sigma={sigma}", ls=line_styles[sigma])
             l4 = plt.plot(dict_of_lines[i][sigma]['prec bad'], c='purple', label=f"sigma={sigma}", ls=line_styles[sigma])
 
-        plt.legend(loc='upper right')
-        plt.xlabel('iterations')
+        plt.legend(loc='upper right', fontsize=15)
+        plt.xlabel('iterations', fontsize=13)
         plt.yscale("log")
-        plt.title(f'random state of M = {M_random}')
-        plt.ylabel(dict_labels[plot_what])
-
+        plt.title(f'random state of M = {M_random}', fontsize=15)
+        plt.ylabel(dict_labels[plot_what], fontsize=13)
+        plt.grid(visible=True, which='major', axis='both', ls=':', alpha=0.5)
     line_labels = ['scaled tensor', f'not scaled tensor (by $10^{degree}$)', 'BLENDENPIK scaled tensor', f'BLENDENPIK not scaled tensor (by $10^{degree})$']
-    fig.legend([l1, l2, l3, l4], labels=line_labels, bbox_to_anchor=(0.9, 0.65), ncol=2, fontsize=12)
-    plt.suptitle(f'M prod LSQR, A shape is {m}, {p}, 2, s={s}')
+    fig.legend([l1, l2, l3, l4], labels=line_labels, bbox_to_anchor=(0.9, 0.6), ncol=2, fontsize=15)
+    plt.suptitle(f'M prod LSQR, A shape is {m}, {p}, 2, s={s}', fontsize=17)
     plt.tight_layout()
