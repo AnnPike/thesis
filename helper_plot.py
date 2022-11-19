@@ -24,6 +24,14 @@ def plot_4M_2A_precond(M_list, dict_of_lines,
             l3 = plt.plot(dict_of_lines[i][sigma]['prec good'], c='orange', label=f"sigma={sigma}", ls=line_styles[sigma])
             l4 = plt.plot(dict_of_lines[i][sigma]['prec bad'], c='purple', label=f"sigma={sigma}", ls=line_styles[sigma])
 
+
+            plt.plot(dict_of_lines[i][sigma]['orig good'], '^', c='y', markevery=5, markersize=10, mfc='none')
+            plt.plot(dict_of_lines[i][sigma]['orig bad'], 'x', c='b', markevery=5, markersize=10, mfc='none')
+            plt.plot(dict_of_lines[i][sigma]['prec good'], 's', c='orange', markevery=5, markersize=10, mfc='none')
+            plt.plot(dict_of_lines[i][sigma]['prec bad'], 'o', c='purple', markevery=5, markersize=10, mfc='none')
+
+
+
         plt.legend(loc='upper right', fontsize=15)
         plt.xlabel('iterations', fontsize=13)
         plt.yscale("log")

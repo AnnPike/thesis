@@ -59,6 +59,13 @@ def generate_tall_A(A_hat, transform, funM, invM, X_true, B):
     return A_tall_tensor, B
 
 
+def generateB_noisy_X(tensorA, X_true, sigma, funM, invM):
+    m, p, n = X_true.shape
+    X_distorded = X_true + sigma*np.random.randn(m, p, n)
+    B_noisy = m_prod(tensorA, X_distorded, funM, invM)
+    return B_noisy
+
+
 # def generate_tall_tensor_eigen(m, p, eigen1, eigen2, funM, invM, add_dct):
 #     np.random.seed(0)
 #     A1 = generate_tall_matrix(m, p, eigen1)
@@ -231,7 +238,7 @@ for i in range(4):
     A_sym = m_prod(A_tensor.transpose(1, 0, 2), A_tensor, funM, invM)
     dict_of_cond[i]['orig bad'] = calculate_cond(A_sym, funM)
     for sigma in sigma_list:
-        B = B_true + sigma * np.random.randn(m, 1, 2)
+        B = generateB_noisy_X(A_tensor, X_true, sigma, funM, invM)
         list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters)
         list_of_E = [X - X_true for X in list_of_X]
         error = np.array([energy_norm(E, A_sym, funM) for E in list_of_E])
@@ -247,7 +254,7 @@ for i in range(4):
     Ap_sym = m_prod(A_tensor_precond.transpose(1, 0, 2), A_tensor_precond, funM, invM)
     dict_of_cond[i]['prec bad'] = calculate_cond(Ap_sym, funM)
     for sigma in sigma_list:
-        B = B_true + sigma * np.random.randn(m, 1, 2)
+        B = generateB_noisy_X(A_tensor, X_true, sigma, funM, invM)
         list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters)
         list_of_E = [X - X_true for X in list_of_X]
         error = np.array([energy_norm(E, A_sym, funM) for E in list_of_E])
@@ -259,7 +266,7 @@ for i in range(4):
     A_sym = m_prod(A_tensor.transpose(1, 0, 2), A_tensor, funM, invM)
     dict_of_cond[i]['orig good'] = calculate_cond(A_sym, funM)
     for sigma in sigma_list:
-        B = B_true + sigma * np.random.randn(m, 1, 2)
+        B = generateB_noisy_X(A_tensor, X_true, sigma, funM, invM)
         list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters)
         list_of_E = [X - X_true for X in list_of_X]
         error = np.array([energy_norm(E, A_sym, funM) for E in list_of_E])
@@ -272,7 +279,7 @@ for i in range(4):
     Ap_sym = m_prod(A_tensor_precond.transpose(1, 0, 2), A_tensor_precond, funM, invM)
     dict_of_cond[i]['prec good'] = calculate_cond(Ap_sym, funM)
     for sigma in sigma_list:
-        B = B_true + sigma * np.random.randn(m, 1, 2)
+        B = generateB_noisy_X(A_tensor, X_true, sigma, funM, invM)
         list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters)
         list_of_E = [X - X_true for X in list_of_X]
         error = np.array([energy_norm(E, A_sym, funM) for E in list_of_E])
@@ -283,7 +290,7 @@ for i in range(4):
 
 for plot_what in plot_what_options:
     helper_plot.plot_4M_2A_precond(M_list, globals()[f'dict_of_lines_{plot_what}'], plot_what, degree, m, p, s, dict_of_cond)
-    name = f'eigenvalues_experiment_LSQR_blendenpick_{m}_{p}_s{s}_k{k}_{plot_what.replace(" ", "_")}_X_true_B_noisy'
+    name = f'eigenvalues_experiment_LSQR_blendenpick_{m}_{p}_s{s}_k{k}_{plot_what.replace(" ", "_")}_X_true_B_noisyX'
     plt.savefig(path_to_save + name)
     plt.show()
 
