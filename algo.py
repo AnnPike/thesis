@@ -295,7 +295,7 @@ def blendenpick(A, funM, invM, s, transform_type='dct'):
     # diag_els_S = np.random.choice([1, 0], m_tilde, [gama*n/m_tilde, 1-gama*n/m_tilde])
     # sampled_hat = M_hat*diag_els_S.reshape(m_tilde, 1, 1) # the same for each slice
 
-    chosen_rows = np.random.choice(m_tilde, s)
+    chosen_rows = np.random.choice(m_tilde, s, replace=False)
     sampled_hat = M_hat[chosen_rows]
     tensor_Q, tensor_R = tensor_QR(sampled_hat, funM, invM, input='hat')
     tensor_precond = inverse_tensor(tensor_R, funM, invM)
