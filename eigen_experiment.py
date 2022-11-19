@@ -13,6 +13,12 @@ def bound(i, k, E0):
 
 bond_vector_f = np.vectorize(bound)
 
+def energy_norm(E, A_sym, funM):
+    E_hat = funM(E)
+    A_hat = funM(A_sym)
+    nu_hat_sq = np.einsum('mpi,pli->mli', np.einsum('mpi,pli->mli', E_hat.transpose(1, 0, 2), A_hat), E_hat)
+    # print((nu_hat_sq<0).sum())
+    return nu_hat_sq.sum()
 
 def nu_tensor_norm(E, A_tensor, funM, invM):
     return algo.tensor_frob_norm(algo.m_prod_three(E.transpose(1, 0, 2), A_tensor, E, funM, invM))
@@ -133,13 +139,11 @@ def get_eigen_sym(A, funM):
     a2_max = np.round(lambda2.max(), 5)
     return a1_min, a1_max, a2_min, a2_max
 
-def get_eigen_tall(A, funM):
-    A_hat = funM(A)
-    A_hat_sym = np.einsum('mpi,pli->mli', A_hat.transpose(1, 0, 2), A_hat)
-    lambda1 = np.linalg.eigvals(A_hat_sym[:, :, 0])
+def get_eigen(A_hat):
+    lambda1 = np.linalg.eigvals(A_hat[:, :, 0])
     a1_min = np.round(lambda1.min(), 5)
     a1_max = np.round(lambda1.max(), 5)
-    lambda2 = np.linalg.eigvals(A_hat_sym[:, :, 1])
+    lambda2 = np.linalg.eigvals(A_hat[:, :, 1])
     a2_min = np.round(lambda2.min(), 5)
     a2_max = np.round(lambda2.max(), 5)
 
@@ -147,7 +151,8 @@ def get_eigen_tall(A, funM):
 
 
 def calculate_cond(A, funM):
-    a1_min, a1_max, a2_min, a2_max = get_eigen_tall(A, funM)
+    A_hat = funM(A)
+    a1_min, a1_max, a2_min, a2_max = get_eigen(A_hat)
     k1 = a1_max/a1_min
     k2 = a2_max/a2_min
     return int(max(k1, k2))
@@ -176,6 +181,7 @@ M_list = ['DCT', 21, 127, 333]
 m, p = 500, 50
 k = 100
 degree = 6
+s = p*6
 
 random_X = np.random.randn(p, 1, 2)
 
@@ -184,6 +190,7 @@ for X_true in [None, random_X]:
     if X_true is None:
         B = np.random.randn(m, 1, 2)
         plot_what_options = ['normalized residual', 'residual']
+        error = None
     else:
         B = None
         plot_what_options = ['residual', 'error', 'normalized residual', 'normalized error']
@@ -213,37 +220,58 @@ for X_true in [None, random_X]:
             funM, invM = generate_dct(2)
         else:
             funM, invM = generate_haar(2, random_state=M_random)
-        # A_tensor_bad = invM(A_tall_hat_bad)
-        # A_tensor_good = invM(A_tall_hat_good)
+
 
         A_tensor, B = generate_tall_A(A_tall_hat_bad, 'original M', funM, invM, X_true, B)
-        dict_of_cond[i]['orig bad'] = calculate_cond(A_tensor, funM)
-        X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
+        A_sym = m_prod(A_tensor.transpose(1, 0, 2), A_tensor, funM, invM)
+        dict_of_cond[i]['orig bad'] = calculate_cond(A_sym, funM)
+
+        list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters)
+        if X_true is not None:
+            list_of_E = [X - X_true for X in list_of_X]
+            error = np.array([energy_norm(E, A_sym, funM) for E in list_of_E])
+
         for plot_what in plot_what_options:
             fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what, 'orig bad')
 
         #preconditioning
-        s = p*6
-
         P, R = algo.blendenpick(A_tensor, funM, invM, s=s)
         A_tensor_precond = m_prod(A_tensor, R, funM, invM)
-        dict_of_cond[i]['prec bad'] = calculate_cond(A_tensor_precond, funM)
-        X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
+        Ap_sym = m_prod(A_tensor_precond.transpose(1, 0, 2), A_tensor_precond, funM, invM)
+        dict_of_cond[i]['prec bad'] = calculate_cond(Ap_sym, funM)
+
+        list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters)
+        if X_true is not None:
+            list_of_E = [X - X_true for X in list_of_X]
+            error = np.array([energy_norm(E, A_sym, funM) for E in list_of_E])
+
         for plot_what in plot_what_options:
             fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what,
                             'prec bad')
 
+
         A_tensor, B = generate_tall_A(A_tall_hat_good, 'original M', funM, invM, X_true, B)
-        dict_of_cond[i]['orig good'] = calculate_cond(A_tensor, funM)
-        X, error, list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters, X_true=X_true)
+        A_sym = m_prod(A_tensor.transpose(1, 0, 2), A_tensor, funM, invM)
+        dict_of_cond[i]['orig good'] = calculate_cond(A_sym, funM)
+
+        list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters)
+        if X_true is not None:
+            list_of_E = [X - X_true for X in list_of_X]
+            error = np.array([energy_norm(E, A_sym, funM) for E in list_of_E])
+
         for plot_what in plot_what_options:
             fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what, 'orig good')
 
-
         P, R = algo.blendenpick(A_tensor, funM, invM, s=s)
         A_tensor_precond = m_prod(A_tensor, R, funM, invM)
-        dict_of_cond[i]['prec good'] = calculate_cond(A_tensor_precond, funM)
-        X, error, list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters, X_true=X_true)
+        Ap_sym = m_prod(A_tensor_precond.transpose(1, 0, 2), A_tensor_precond, funM, invM)
+        dict_of_cond[i]['prec good'] = calculate_cond(Ap_sym, funM)
+
+        list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters)
+        if X_true is not None:
+            list_of_E = [X - X_true for X in list_of_X]
+            error = np.array([energy_norm(E, A_sym, funM) for E in list_of_E])
+
         for plot_what in plot_what_options:
             fill_dict_lines(globals()[f'dict_of_lines_{plot_what}'], A_tensor, B, funM, invM, error, list_of_X, plot_what,
                             'prec good')
