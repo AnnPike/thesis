@@ -231,7 +231,10 @@ for i in range(4):
     A_sym = m_prod(A_tensor.transpose(1, 0, 2), A_tensor, funM, invM)
     dict_of_cond[i]['orig bad'] = calculate_cond(A_sym, funM)
     for sigma in sigma_list:
-        B = B_true + sigma * np.random.randn(m, 1, 2)
+        noisy_part = np.concatenate((sigma * np.random.randn(m, 1, 1), sigma * 10**3*np.random.randn(m, 1, 1)), 2)
+        print(noisy_part.shape)
+        B = B_true + noisy_part
+        # B = B_true + sigma * np.random.randn(m, 1, 2)
         list_of_X = algo.LSQR_mprod_tuples(A_tensor, B, funM, invM, iters)
         list_of_E = [X - X_true for X in list_of_X]
         error = np.array([energy_norm(E, A_sym, funM) for E in list_of_E])
@@ -247,7 +250,10 @@ for i in range(4):
     Ap_sym = m_prod(A_tensor_precond.transpose(1, 0, 2), A_tensor_precond, funM, invM)
     dict_of_cond[i]['prec bad'] = calculate_cond(Ap_sym, funM)
     for sigma in sigma_list:
-        B = B_true + sigma * np.random.randn(m, 1, 2)
+        noisy_part = np.concatenate((sigma * np.random.randn(m, 1, 1), sigma * 10 ** 3 * np.random.randn(m, 1, 1)), 2)
+        print(noisy_part.shape)
+        B = B_true + noisy_part
+        # B = B_true + sigma * np.random.randn(m, 1, 2)
         list_of_X = algo.LSQR_mprod_tuples_precond(A_tensor, B, R, funM, invM, iters)
         list_of_E = [X - X_true for X in list_of_X]
         error = np.array([energy_norm(E, A_sym, funM) for E in list_of_E])
@@ -283,9 +289,9 @@ for i in range(4):
 
 for plot_what in plot_what_options:
     helper_plot.plot_4M_2A_precond(M_list, globals()[f'dict_of_lines_{plot_what}'], plot_what, degree, m, p, s, dict_of_cond)
-    name = f'eigenvalues_experiment_LSQR_blendenpick_{m}_{p}_s{s}_k{k}_{plot_what.replace(" ", "_")}_X_true_B_noisy'
+    name = f'eigenvalues_experiment_LSQR_blendenpick_{m}_{p}_s{s}_k{k}_{plot_what.replace(" ", "_")}_X_true_B_noisy_prop'
     plt.savefig(path_to_save + name)
-    plt.show()
+    plt.close()
 
 
 
