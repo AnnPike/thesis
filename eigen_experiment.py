@@ -1,6 +1,6 @@
 import numpy as np
-from mprod import  m_prod
-from mprod import  generate_haar, generate_dct
+from mprod import m_prod
+from mprod import generate_haar, generate_dct
 import algo
 from scipy.stats import ortho_group
 import helper_plot
@@ -171,7 +171,7 @@ def fill_dict_lines(dict_of_lines, A_tensor, B, funM, invM, error, list_of_X, pl
     return dict_of_lines
 
 
-path_to_save = '/home/anna/uni/thesis/numerical_results/eigen_n2_numerical/'
+path_to_save = 'numerical_results/eigen_n2_numerical/'
 np.random.seed(1)
 
 iters = 40

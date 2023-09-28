@@ -7,9 +7,11 @@ import helper_plot
 import matplotlib.pyplot as plt
 import time
 import pickle
+import gc
 
 
-path_to_save = 'C:\\Users\\\Chibby\\Desktop\\chibi\\uni\\numerical_experiments\\DCTvsS\\'
+
+path_to_save = 'numerical_results/DCTvsS/'
 start_blendenpik = time.time()
 
 
@@ -17,10 +19,17 @@ gama = 4
 for n in [3, 10, 15]:
 
     funM, invM = generate_haar(n, random_state=21)
-    time_S_list = []
-    time_b_list = []
 
-    for i, m in enumerate(range(500, 30001, 500)):
+    if n == 3:
+        start = 26000
+        time_S_list = pickle.load(open(f'{path_to_save}S_list_n{n}', 'rb'))
+        time_b_list = pickle.load(open(f'{path_to_save}b_list_n{n}', 'rb'))
+    else:
+        start = 500
+        time_S_list = []
+        time_b_list = []
+
+    for i, m in enumerate(range(start, 30001, 500)):
         np.random.seed(0)
         p = m//20
         s = gama*p
@@ -41,8 +50,9 @@ for n in [3, 10, 15]:
 
         pickle.dump(time_S_list, open(f'{path_to_save}S_list_n{n}', 'wb'))
         pickle.dump(time_b_list, open(f'{path_to_save}b_list_n{n}', 'wb'))
+        print(f'finished n={n}, m={m}')
 
-        if i!=0:
+        if i != 0:
             plt.figure(figsize=(10, 5))
             plt.plot(time_S_list, 'g', label='S ~ N(1,0)')
             plt.plot(time_b_list, 'b', label='dct')
@@ -50,14 +60,16 @@ for n in [3, 10, 15]:
             plt.title(f'Time, p=m//20, n={n}, s=4*p')
             plt.ylabel('seconds')
             plt.xlabel('m')
-            plt.xticks(range(i+1), range(500, i*500+501, 500))
+            plt.xticks(range(0, len(time_S_list), 10), range(500, len(time_S_list)*500+1, 500*10))
             plt.savefig(f'{path_to_save}timeit_n{n}')
-            print(f'n={n}, m={m}')
+
             plt.close()
+            gc.collect()
+            time.sleep(10)
 
 
 plt.figure(figsize=(10, 5))
-colors = {3:'purple', 10:'b', 15:'g'}
+colors = {3: 'purple', 10: 'b', 15: 'g'}
 for n in [3, 10, 15]:
     lS = pickle.load(open(f'{path_to_save}S_list_n{n}', 'rb'))
     ld = pickle.load(open(f'{path_to_save}b_list_n{n}', 'rb'))
