@@ -4,14 +4,27 @@ from scipy.fft import dct, idct, rfft, irfft
 from einsumt import einsumt as einsum #Multithreaded version of numpy.einsum function
 
 
-def normalize(X, funM, invM, tol=10**-10):
-    V_hat = funM(X)
-    m, p, n = X.shape #p==1
-    a_all = np.ones(n)
+
+def transform(tensor, transform):
+    if transform:
+        tensor_transform = transform(tensor)
+    else:
+        tensor_transform = tensor
+    return tensor_transform
+
+
+def facewise_mult(tenA, tenB):
+    return einsum('mpi,pli->mli', tenA, tenB)
+
+
+def normalize(tenX, funM=None, invM=None, tol=10**-10):
+    m, p, n = tenX.shape  # p==1
+    V_hat = transform(tenX, funM)
+    a_all_hat = np.ones(n)
     for i in range(n):
         a = np.linalg.norm(V_hat[:, :, i].squeeze(), None)
         # print(a)
-        a_all[i] = a
+        a_all_hat[i] = a
         if a > tol:
             V_hat[:, :, i] = V_hat[:, :, i]/a
         else:
@@ -19,40 +32,40 @@ def normalize(X, funM, invM, tol=10**-10):
             V_hat[:, :, i] = np.random.randn(m, 1)
             a = np.linalg.norm(V_hat[:, :, i].squeeze(), None)
             V_hat[:, :, i] = V_hat[:, :, i]/a
-            a_all[i] = 0
-    V = invM(V_hat)
-    a_all = invM(a_all.reshape((1, 1, -1)))
+            a_all_hat[i] = 0
+    V = transform(V_hat, invM)
+    a_all = transform(a_all_hat, invM)
     return V, a_all
 
 
-def inverse_of_tube(a, funM, invM):
+def inverse_of_tube(a, funM=None, invM=None):
     n = a.shape[2]
     I_hat = np.ones((1, 1, n))
-    a_hat = funM(a)
+    a_hat = transform(a, funM)
     a_inv_hat = np.divide(I_hat, a_hat)
-    a_inv = invM(a_inv_hat)
+    a_inv = transform(a_inv_hat, invM)
     return a_inv
 
 
-
-def m_prod_three(A, B, C, fun_m, inv_m):
-    a_hat = fun_m(A)
-    b_hat = fun_m(B)
-    c_hat = fun_m(C)
-    mult_hat = einsum('mpi,pli->mli', einsum('mpi,pli->mli', a_hat, b_hat), c_hat)
-    return inv_m(mult_hat)
-
-
-def tensor_frob_norm(A):
-    return np.sqrt((A**2).sum())
+def m_prod_three(tenA, tenB, tenC, funM=None, invM=None):
+    tenA_hat = transform(tenA, funM)
+    tenB_hat = transform(tenB, funM)
+    tenC_hat = transform(tenC, funM)
+    tenAB_hat = einsum('mpi,pli->mli', tenA_hat, tenB_hat)
+    tenABC_hat = einsum('mpi,pli->mli', tenAB_hat, tenC_hat)
+    return transform(tenABC_hat, invM)
 
 
-def nu_tensor_norm(E, A_tensor, funM, invM):
-    return tensor_frob_norm(m_prod_three(E.transpose(1, 0, 2), A_tensor, E, funM, invM))
+def tensor_frob_norm(tenA):
+    return np.sqrt((tenA**2).sum())
 
 
-def CG_M_tensor(A_tensor, B, funM, invM, iters, tol=10**-10, X_true=None):
-    m, p, n = A_tensor.shape
+def nu_tensor_norm(E, tenA, funM=None, invM=None):
+    return tensor_frob_norm(m_prod_three(E.transpose(1, 0, 2), tenA, E, funM, invM))
+
+
+def CG_M_tensor(tenA, B, funM, invM, iters, tol=10**-10, X_true=None):
+    m, p, n = tenA.shape
     if m!=p:
         print('error: the frontal slices are not square matrices')
         return None
@@ -63,14 +76,14 @@ def CG_M_tensor(A_tensor, B, funM, invM, iters, tol=10**-10, X_true=None):
     X = X_zero.copy()
     if X_true is not None:
         E0 = X - X_true
-        error_each_step = [nu_tensor_norm(E0, A_tensor, funM, invM)]
+        error_each_step = [nu_tensor_norm(E0, tenA, funM, invM)]
     for i in range(iters):
         alpha_num = m_prod(R.transpose((1,0,2)), R, funM, invM)
-        alpha_den = m_prod_three(D.transpose((1,0,2)),A_tensor, D, funM, invM)
+        alpha_den = m_prod_three(D.transpose((1,0,2)), tenA, D, funM, invM)
 
         alpha = m_prod(alpha_num, inverse_of_tube(alpha_den, funM, invM), funM, invM)
         X = X+m_prod(D, alpha, funM, invM)
-        R_next = R-m_prod_three(A_tensor, D, alpha, funM, invM)
+        R_next = R-m_prod_three(tenA, D, alpha, funM, invM)
         beta_num = m_prod(R_next.transpose((1,0,2)), R_next, funM, invM)
         beta_den = m_prod(R.transpose((1,0,2)), R, funM, invM)
         beta = m_prod(inverse_of_tube(beta_den, funM, invM), beta_num,funM, invM)
@@ -81,7 +94,7 @@ def CG_M_tensor(A_tensor, B, funM, invM, iters, tol=10**-10, X_true=None):
             X_new = m_prod(X, a_all, funM, invM)
             # X_new = X.copy()
             E = X_new-X_true
-            error_each_step.append(nu_tensor_norm(E, A_tensor, funM, invM))
+            error_each_step.append(nu_tensor_norm(E, tenA, funM, invM))
     if X_true is not None:
         return X_new, error_each_step
 
@@ -234,12 +247,12 @@ def LSQR_mprod_tuples_precond(A, C, R, funM, invM, itermax=25, tol=10 ** -5):
     return list_of_X
 
 
-def inverse_tensor(tensor, funM, invM):
-    tensor_hat = funM(tensor)
+def inverse_tensor(tensor, funM=None, invM=None):
+    tensor_hat = transform(tensor, funM)
     m, p, n = tensor_hat.shape
     face_inv = np.concatenate([np.linalg.inv(tensor_hat[:, :, i]).reshape(m, p, 1) for i in range(n)], 2)
-    tensor_inv = invM(face_inv)
-    return tensor_inv
+    tensor_inv_out = transform(face_inv, invM)
+    return tensor_inv_out
 
 # from mprod import  generate_haar, generate_dct
 # funM, invM = generate_haar(4, random_state=0)
@@ -253,12 +266,9 @@ def inverse_tensor(tensor, funM, invM):
 
 
 #this funtion can be written for paralel computation (https://www.quantstart.com/articles/QR-Decomposition-with-Python-and-NumPy/)
-def tensor_QR(tensor, funM, invM, input='not hat'):
+def tensor_QR(tensor, funM=None, invM=None):
     m, p, n = tensor.shape
-    if input == 'not hat':
-        tensor_hat = funM(tensor)
-    else:
-        tensor_hat = tensor
+    tensor_hat = transform(tensor, funM)
     tensor_Q = np.empty((m, p, 0))
     tensor_R = np.empty((p, p, 0))
     for i in range(n):
@@ -266,10 +276,32 @@ def tensor_QR(tensor, funM, invM, input='not hat'):
 
         tensor_Q = np.concatenate([tensor_Q, Q.reshape(m, p, 1)], 2)
         tensor_R = np.concatenate([tensor_R, R.reshape(p, p, 1)], 2)
-
-    tensor_Q = invM(tensor_Q)
-    tensor_R = invM(tensor_R)
+    tensor_Q = transform(tensor_Q, invM)
+    tensor_R = transform(tensor_R, invM)
     return tensor_Q, tensor_R
+
+
+def tensor_Cholesky(tensor, funM=None, invM=None):
+    m, p, n = tensor.shape
+    tensor_hat = transform(tensor, funM)
+    gram_ten = einsum('mpi,pli->mli', tensor_hat.transpose(1, 0, 2), tensor_hat)
+    tensor_L = np.empty((p, p, 0))
+    for i in range(n):
+        L = np.linalg.cholesky(gram_ten[:, :, i])
+        tensor_L = np.concatenate([tensor_L, np.expand_dims(L, -1)], 2)
+    tensor_L_out = transform(tensor_L, invM)
+    return tensor_L_out
+
+
+def Cholesky_direct(tenA, omatB, funM=None, invM=None):
+    tensorA_hat = transform(tenA, funM)
+    omatB_hat = transform(omatB, funM)
+    tenL_hat = tensor_Cholesky(tensorA_hat, funM, invM)
+    tenL_hat_inv = inverse_tensor(tenL_hat, funM, invM)
+    omatX_hat1 = facewise_mult(tensorA_hat.transpose(1, 0, 2), omatB_hat)
+    omatX_hat2 = facewise_mult(tenL_hat_inv, omatX_hat1)
+    omatX_hat = facewise_mult(tenL_hat_inv.transpose(1, 0, 2), omatX_hat2)
+    return transform(omatX_hat, invM)
 
 
 
@@ -298,7 +330,7 @@ def blendenpick(A, funM, invM, s, transform_type='dct'):
 
     chosen_rows = np.random.choice(m_tilde, s)
     sampled_hat = M_hat[chosen_rows]
-    tensor_Q, tensor_R = tensor_QR(sampled_hat, funM, invM, input='hat')
+    tensor_Q, tensor_R = tensor_QR(sampled_hat, funM, invM, input='hat', output='hat')
     tensor_precond = inverse_tensor(tensor_R, funM, invM)
     return tensor_R, tensor_precond
 
@@ -310,7 +342,7 @@ def sampling_QR(tensor, funM, invM, s):
     tensor_hat = funM(tensor)
 
     sampled_tensor_hat = einsum('mpi,pli->mli', sampling_tensor, tensor_hat)
-    tensor_Q, tensor_R = tensor_QR(sampled_tensor_hat, funM, invM, input='hat')
+    tensor_Q, tensor_R = tensor_QR(sampled_tensor_hat, funM, invM)
 
     tensor_precond = inverse_tensor(tensor_R, funM, invM)
     return tensor_R, tensor_precond

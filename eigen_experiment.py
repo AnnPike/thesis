@@ -1,6 +1,5 @@
 import numpy as np
-from mprod import m_prod
-from mprod import generate_haar, generate_dct
+from mprod import generate_haar, generate_dct, m_prod
 import algo
 from scipy.stats import ortho_group
 import helper_plot
