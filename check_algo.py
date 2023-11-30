@@ -8,8 +8,8 @@ m, p, n = 100, 10, 5
 tenA_hat = rg.generate_tensor(m, p, n, 'coherent')
 omatX_hat = np.random.randn(p, 1, n)
 
-# omatNoise = np.random.randn(m, 1, n)
-omatNoise = np.zeros((m, 1, n))
+omatNoise = np.random.randn(m, 1, n)
+# omatNoise = np.zeros((m, 1, n))
 omatB_hat = algo.facewise_mult(tenA_hat, omatX_hat) + omatNoise
 
 
