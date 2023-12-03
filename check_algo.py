@@ -3,7 +3,7 @@ import random_generation as rg
 import numpy as np
 from mprod import generate_haar, generate_dct, m_prod
 
-m, p, n = 100, 10, 5
+m, p, n = 200, 10, 5
 
 tenA_hat = rg.generate_tensor(m, p, n, 'coherent')
 omatX_hat = np.random.randn(p, 1, n)
