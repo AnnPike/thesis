@@ -2,7 +2,18 @@ import numpy as np
 from mprod import m_prod
 from scipy.fft import dct, idct, rfft, irfft
 from einsumt import einsumt as einsum #Multithreaded version of numpy.einsum function
+from joblib import Parallel, delayed
+import multiprocessing
+from scipy.linalg.lapack import dtrtri
+from scipy.linalg import solve_triangular
 
+
+
+num_cores = multiprocessing.cpu_count()
+
+
+def faceI(p, n):
+    return np.concatenate([np.expand_dims(np.identity(p), 2) for i in range(n)], 2)
 
 
 def transform(tensor, transform):
@@ -225,7 +236,7 @@ def LSQR_mprod_tuples_precond(A, C, R, funM, invM, itermax=25, tol=10 ** -5):
         U_wave = m_prod_three_fun(A, R, V) - m_prod_fun(U, alpha)
         U, beta = normalize(U_wave, funM, invM, tol)
 
-        V_wave = m_prod_three_fun(R.transpose(1,0,2), A.transpose(1,0,2), U) - m_prod_fun(V, beta)
+        V_wave = m_prod_three_fun(R.transpose(1, 0, 2), A.transpose(1,0,2), U) - m_prod_fun(V, beta)
         V, alpha = normalize(V_wave, funM, invM, tol) # V - l*s*p
 
         # orthogonal transformation
@@ -247,10 +258,20 @@ def LSQR_mprod_tuples_precond(A, C, R, funM, invM, itermax=25, tol=10 ** -5):
     return list_of_X
 
 
+
+# def inverse_tri_mat(mat, lower):
+#     inv_mat, _ = dtrtri(mat, lower=lower)
+#     return inv_mat
+
+
+def inverse_tri_mat(mat, lower):
+    inv_mat = solve_triangular(mat, np.eye(len(mat)), lower=lower)
+    return inv_mat
+
+
 def inverse_tensor(tensor, funM=None, invM=None):
     tensor_hat = transform(tensor, funM)
-    m, p, n = tensor_hat.shape
-    face_inv = np.concatenate([np.linalg.inv(tensor_hat[:, :, i]).reshape(m, p, 1) for i in range(n)], 2)
+    face_inv = np.linalg.inv(tensor_hat.transpose(2, 0, 1)).transpose(1, 2, 0)
     tensor_inv_out = transform(face_inv, invM)
     return tensor_inv_out
 
@@ -281,23 +302,35 @@ def tensor_QR(tensor, funM=None, invM=None):
     return tensor_Q, tensor_R
 
 
-def tensor_Cholesky(tensor, funM=None, invM=None):
+# def tensor_Cholesky(tensor, reg=0, funM=None, invM=None):
+#     m, p, n = tensor.shape
+#     tensor_hat = transform(tensor, funM)
+#     gram_ten = einsum('mpi,pli->mli', tensor_hat.transpose(1, 0, 2), tensor_hat)
+#     gram_ten_reg = gram_ten + reg*faceI(p, n)
+#     tensor_L = np.empty((p, p, 0))
+#     for i in range(n):
+#         L = np.linalg.cholesky(gram_ten_reg[:, :, i])
+#         tensor_L = np.concatenate([tensor_L, np.expand_dims(L, -1)], 2)
+#     tensor_L_out = transform(tensor_L, invM)
+#     return tensor_L_out
+
+
+
+def tensor_Cholesky(tensor, reg=0, funM=None, invM=None):
     m, p, n = tensor.shape
     tensor_hat = transform(tensor, funM)
     gram_ten = einsum('mpi,pli->mli', tensor_hat.transpose(1, 0, 2), tensor_hat)
-    tensor_L = np.empty((p, p, 0))
-    for i in range(n):
-        L = np.linalg.cholesky(gram_ten[:, :, i])
-        tensor_L = np.concatenate([tensor_L, np.expand_dims(L, -1)], 2)
+    gram_ten_reg = gram_ten + reg*faceI(p, n)
+    tensor_L = np.linalg.cholesky(gram_ten_reg.transpose(2, 0, 1)).transpose(1, 2, 0)
     tensor_L_out = transform(tensor_L, invM)
     return tensor_L_out
 
 
-def Cholesky_direct(tenA, omatB, funM=None, invM=None):
+def Cholesky_direct(tenA, omatB, reg=0, funM=None, invM=None):
     tensorA_hat = transform(tenA, funM)
     omatB_hat = transform(omatB, funM)
-    tenL_hat = tensor_Cholesky(tensorA_hat, funM, invM)
-    tenL_hat_inv = inverse_tensor(tenL_hat, funM, invM)
+    tenL_hat = tensor_Cholesky(tensorA_hat, reg)
+    tenL_hat_inv = inverse_tensor(tenL_hat)
     omatX_hat1 = facewise_mult(tensorA_hat.transpose(1, 0, 2), omatB_hat)
     omatX_hat2 = facewise_mult(tenL_hat_inv, omatX_hat1)
     omatX_hat = facewise_mult(tenL_hat_inv.transpose(1, 0, 2), omatX_hat2)

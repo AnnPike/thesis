@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import algo
 import pickle
 from matplotlib.pyplot import cm
+from mprod import generate_haar, generate_dct
+
 
 tenX = pickle.load(open('datasets/rainfall_ten', 'rb'))
 print(tenX.shape)
@@ -17,60 +19,42 @@ for i in range(n):
        plt.plot(tenA[-1, :, i], c=colors[i])
        plt.scatter(p, omatB[-1, :, i], c=colors[i])
 plt.show()
-
-
-
-
-
 print(tenA.shape, omatB.shape)
 
 tenA_norm = (tenA - np.expand_dims(tenA.mean(0), 0))
 omatB_norm = (omatB - np.expand_dims(omatB.mean(0), 0))
 tenAbias = np.concatenate((np.ones((m, 1, n)), tenA_norm), 1)
 
-X_pred = algo.Cholesky_direct(tenA_norm, omatB_norm)
-plt.plot(X_pred[:, 0, :])
-plt.show()
-identity_error = algo.tensor_frob_norm(algo.facewise_mult(tenA_norm, X_pred)-omatB_norm)
+X_pred_identity = algo.Cholesky_direct(tenA_norm, omatB_norm, reg=10)
+identity_error = algo.tensor_frob_norm(algo.facewise_mult(tenA_norm, X_pred_identity)-omatB_norm)
 print(identity_error)
 
 
-from mprod import generate_haar, generate_dct
+plt.figure(figsize=(15, 10))
+plt.subplot(3, 2, 1)
+plt.plot(X_pred_identity[:, 0, :].T)
+plt.title(f'original solution, error = {np.round(identity_error, 2)}')
 
-success_count = 0
-fail_count = 0
-for i in range(10**4):
+found = 0
+i = 0
+while found < 2:
        funM, invM = generate_haar(n, random_state=i)
-
-       tenAhat = funM(tenA)
-       tenAhat_norm = tenAhat - np.expand_dims(tenAhat.mean(0), 0)
-       # tenAbias = np.concatenate((invM(np.ones((m, 1, n))), invM(tenA_norm_hat)), 1)
-
-       omatBhat = funM(omatB)
-       omatBhat_norm = (omatBhat - np.expand_dims(omatBhat.mean(0), 0))
-
-       X_pred_hat = algo.Cholesky_direct(tenAhat_norm, omatBhat_norm)
-       error_hat = algo.tensor_frob_norm(algo.facewise_mult(tenAhat_norm, X_pred_hat)-omatBhat_norm)
-       # print(error_hat)
-       error = algo.tensor_frob_norm(algo.m_prod(invM(tenAhat_norm), invM(X_pred_hat), funM, invM) - invM(omatBhat_norm))
-       # print(error)
+       # tenAhat_norm = funM(tenA_norm)
+       # omatBhat_norm = funM(omatB_norm)
+       X_pred = algo.Cholesky_direct(tenA_norm, omatB_norm, reg=10, funM=funM, invM=invM)
+       error_hat = algo.tensor_frob_norm(algo.facewise_mult(funM(tenA_norm), funM(X_pred))-funM(omatB_norm))
+       error = algo.tensor_frob_norm(algo.m_prod(tenA_norm, X_pred, funM, invM) - omatB_norm)
 #
-       if error < identity_error:
-#               # print(i, error, 'SUCCESS')
-#               success_count+=1
-#        else:
-#               print(identity_error-error_hat)
-#               fail_count+=1
-# print(success_count/10**4, fail_count/10**4)
+       if error < 0.98*identity_error:
+           found+=1
+           print(found)
+           plt.subplot(3, 2, 2*found+1)
+           plt.plot(invM(X_pred)[:, 0, :].T)
+           plt.title(f'orig space, error = {np.round(error, 2)}')
+           plt.subplot(3, 2, 2*found+2)
+           plt.plot(funM(X_pred)[:, 0, :].T)
+           plt.title(f'hat space, random state={i}')
+       i += 1
 
-              plt.figure(figsize=(15, 5))
-              plt.subplot(121)
-              plt.plot(X_pred[:, 0, :])
-              plt.title('orig space')
-
-              plt.subplot(122)
-              plt.plot(funM(X_pred)[:, 0, :])
-              plt.title('hat space')
-              plt.suptitle(f'random state funM = {i}, error = {np.round(error, 1)}')
-              plt.show()
-       #
+plt.tight_layout()
+plt.show()
